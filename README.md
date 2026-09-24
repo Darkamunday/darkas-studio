@@ -18,11 +18,28 @@ share links, invite-code sign-up, per-user usage tracking, and an admin page.
 ```bash
 npm install
 cp .env.example .env.local   # then fill in SUNO_API_KEY
-npm run dev                   # http://localhost:3000
+npm run dev                   # http://localhost:3000 (development)
 ```
 
 The first account to sign up becomes the admin (no invite code needed). After that, sign-up requires
 an invite code — create them on the Admin page and share the link.
+
+## Production
+
+Runs as the systemd service `music-app` (`next start` on port 3000, behind Nginx Proxy Manager with
+Websockets Support on). The unit file lives in `deploy/music-app.service`.
+
+**To ship a change:** commit it, then run
+
+```bash
+/opt/music-app/deploy/deploy.sh
+```
+
+It installs dependencies, type-checks, lints and builds *before* restarting, so a broken build never
+takes the site down. Downtime is a couple of seconds. Logs: `journalctl -u music-app -f`.
+
+**To roll back:** `git checkout <previous-commit>` then run `deploy/deploy.sh` again. Database
+migrations only ever add things, so older code keeps working with a newer database.
 
 ## Configuration (`.env.local`)
 

@@ -1,6 +1,6 @@
 import "server-only";
 import { cache } from "react";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
@@ -35,6 +35,11 @@ export async function verifyPassword(password: string, stored: string): Promise<
 
 // ---- sessions --------------------------------------------------------------
 
+async function isHttps() {
+  const proto = (await headers()).get("x-forwarded-proto")?.split(",")[0].trim();
+  return proto === "https";
+}
+
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
 /** Must be called from a Server Action or Route Handler (sets a cookie). */
@@ -49,7 +54,9 @@ export async function createSession(userId: number) {
   (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    // HTTPS-only when the request really came over HTTPS (the proxy says so), not
+    // just "in production": plain-http LAN access must still be able to log in.
+    secure: await isHttps(),
     path: "/",
     maxAge: SESSION_TTL_SECONDS,
   });

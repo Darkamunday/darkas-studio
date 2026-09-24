@@ -1,0 +1,18 @@
+# Production service for Darka's Studio.
+# Install: cp deploy/music-app.service /etc/systemd/system/ && systemctl daemon-reload
+[Unit]
+Description=Darka's Studio (Next.js, production)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/music-app
+# Serves the output of `npm run build` — use deploy/deploy.sh to rebuild and restart.
+ExecStart=/usr/bin/npm run start -- -H 0.0.0.0 -p 3000
+Environment=NODE_ENV=production
+Restart=always
+RestartSec=3
+User=root
+
+[Install]
+WantedBy=multi-user.target
