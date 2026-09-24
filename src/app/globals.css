@@ -1,0 +1,155 @@
+@import "tailwindcss";
+
+/* Dark is the default; <html class="light"> switches theme (set from a cookie in the root layout). */
+@custom-variant light (&:where(.light, .light *));
+
+/* ---- theme tokens --------------------------------------------------------- */
+
+:root {
+  color-scheme: dark;
+  --bg: #0e0a15;
+  --surface: #171220;
+  --surface-2: #211a2c;
+  --surface-3: #2a2238;
+  --line: #2e2540;
+  --line-strong: #43385a;
+  --fg: #f4eff9;
+  --muted: #b3a8c3;
+  --subtle: #7d7290;
+  --peach: #ffb28a;
+  --pink: #ff6fae;
+  --violet: #a58bff;
+  --accent-fg: #ffc2de; /* accent text on dark surfaces */
+  --danger: #ff7a90;
+  --success: #5fe0a8;
+  --warn: #ffc56b;
+  --glow: 255 111 174; /* rgb triplet for shadows */
+  --card-shadow: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 12px 32px -18px rgb(0 0 0 / 0.6);
+}
+
+:root.light {
+  color-scheme: light;
+  --bg: #fbf6f2;
+  --surface: #ffffff;
+  --surface-2: #f6eff4;
+  --surface-3: #efe5ee;
+  --line: #eadfe8;
+  --line-strong: #d7c8d6;
+  --fg: #1e1627;
+  --muted: #5f5270;
+  --subtle: #8f839e;
+  --peach: #ff9a6b;
+  --pink: #e8428e;
+  --violet: #7a58f0;
+  --accent-fg: #c42a72;
+  --danger: #d6344f;
+  --success: #12955f;
+  --warn: #b7740c;
+  --glow: 232 66 142;
+  --card-shadow: 0 1px 2px rgb(60 30 70 / 0.04), 0 12px 32px -20px rgb(90 40 90 / 0.18);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-peach: var(--peach);
+  --color-pink: var(--pink);
+  --color-violet: var(--violet);
+  --color-accent-fg: var(--accent-fg);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-warn: var(--warn);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-display: var(--font-bricolage), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+
+  --animate-eq: eq 1s ease-in-out infinite;
+  --animate-float: float 14s ease-in-out infinite;
+  --animate-shimmer: shimmer 1.8s linear infinite;
+  --animate-pop: pop 0.25s ease-out;
+}
+
+@keyframes eq {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+@keyframes float {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(3%, 4%) scale(1.06); }
+}
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+@keyframes pop {
+  from { opacity: 0; transform: translateY(4px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ---- base ------------------------------------------------------------------ */
+
+@layer base {
+  html {
+    background: var(--bg);
+    color: var(--fg);
+  }
+  body {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--pink) 35%, transparent);
+  }
+  :focus-visible {
+    outline: 2px solid var(--pink);
+    outline-offset: 2px;
+  }
+  /* Native controls (select dropdowns, checkboxes) follow the theme. */
+  select option {
+    background: var(--surface);
+    color: var(--fg);
+  }
+}
+
+/* ---- reusable pieces ---------------------------------------------------------- */
+
+@utility bg-brand {
+  background-image: linear-gradient(120deg, var(--peach), var(--pink) 45%, var(--violet));
+}
+@utility text-brand {
+  background-image: linear-gradient(120deg, var(--peach), var(--pink) 45%, var(--violet));
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+@utility shadow-glow {
+  box-shadow: 0 10px 30px -10px rgb(var(--glow) / 0.45);
+}
+@utility shadow-card {
+  box-shadow: var(--card-shadow);
+}
+@utility skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
