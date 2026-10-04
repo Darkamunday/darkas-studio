@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState } from "react";
 import { btnPrimary, input, label } from "@/components/ui";
+import { useI18n } from "@/lib/i18n/client";
 import type { AuthFormState } from "./actions";
 
 type Props = {
@@ -16,21 +17,22 @@ type Props = {
 export function AuthForm({ mode, action, needsInvite, inviteCode }: Props) {
   const [state, formAction, pending] = useActionState(action, undefined);
   const isSignup = mode === "signup";
+  const { m } = useI18n();
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
-      <Field label="Username" name="username" autoComplete="username" errors={state?.fieldErrors?.username} />
+      <Field label={m.auth.username} name="username" autoComplete="username" errors={state?.fieldErrors?.username} />
       <Field
-        label="Password"
+        label={m.auth.password}
         name="password"
         type="password"
         autoComplete={isSignup ? "new-password" : "current-password"}
         errors={state?.fieldErrors?.password}
-        hint={isSignup ? "At least 8 characters" : undefined}
+        hint={isSignup ? m.auth.passwordHint : undefined}
       />
       {isSignup && needsInvite && (
         <Field
-          label="Invite code"
+          label={m.auth.inviteCode}
           name="inviteCode"
           autoComplete="off"
           placeholder="ABCD-EFGH"
@@ -47,22 +49,22 @@ export function AuthForm({ mode, action, needsInvite, inviteCode }: Props) {
       )}
 
       <button type="submit" disabled={pending} className={`${btnPrimary} mt-2 py-3`}>
-        {pending ? "One sec…" : isSignup ? "Create account" : "Log in"}
+        {pending ? m.auth.pending : isSignup ? m.auth.createAccount : m.auth.logIn}
       </button>
 
       <p className="text-center text-sm text-muted">
         {isSignup ? (
           <>
-            Already have an account?{" "}
+            {m.auth.haveAccount}{" "}
             <Link href="/login" className="font-medium text-accent-fg hover:underline">
-              Log in
+              {m.auth.logIn}
             </Link>
           </>
         ) : (
           <>
-            Got an invite?{" "}
+            {m.auth.gotInvite}{" "}
             <Link href="/signup" className="font-medium text-accent-fg hover:underline">
-              Sign up
+              {m.auth.signUp}
             </Link>
           </>
         )}

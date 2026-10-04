@@ -62,6 +62,15 @@ Nothing below is in git — **back these up together**, since catalogue rows poi
   in `src/lib/db.ts` run automatically on startup.
 - `$MEDIA_DIR/audio`, `$MEDIA_DIR/covers` — downloaded MP3s and cover art.
 
+## Languages
+
+The interface is in English, French, Indonesian, Brazilian Portuguese and Malay. Visitors get their
+browser's language; the globe button switches it and remembers the choice in a `lang` cookie.
+
+All text lives in `src/lib/i18n/messages/` — `en.ts` is the source, and the other four must have exactly
+the same keys (the type check fails otherwise). To add or change text, edit `en.ts` and then the same
+key in `fr.ts`, `id.ts`, `pt.ts` and `ms.ts`. Song titles, prompts, lyrics and genres are shown as written.
+
 ## Layout
 
 ```
@@ -70,6 +79,7 @@ src/app/(app)/         signed-in pages: generate, catalogue, admin
 src/app/s/[token]/     public song pages (share links)
 src/app/api/           status polling, media streaming, provider callback, share & remix sources
 src/lib/               db, auth, provider client, tracks, sharing, remix, storage
-src/components/        player, logo, theme toggle, shared UI classes
+src/lib/i18n/          languages, translations, helpers for server and client components
+src/components/        player, logo, theme toggle, language picker, shared UI classes
 src/proxy.ts           redirects signed-out visitors to /login (Next 16's replacement for middleware)
 ```

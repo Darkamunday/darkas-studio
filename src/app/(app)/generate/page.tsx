@@ -4,11 +4,16 @@ import { canRemix, getRemixSource } from "@/lib/remix";
 import { DEFAULT_MODEL } from "@/lib/suno";
 import { MOODS, canViewTrack, pendingGenerationsForUser, refreshStalePending } from "@/lib/tracks";
 import { GenerateStudio, type RemixSourceInfo } from "./studio";
+import { getI18n } from "@/lib/i18n/server";
+import { fmt, rich } from "@/lib/i18n/format";
 
-export const metadata: Metadata = { title: "Create" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getI18n()).m.meta.create };
+}
 
 export default async function GeneratePage({ searchParams }: PageProps<"/generate">) {
   const user = await requireUser();
+  const { m } = await getI18n();
   refreshStalePending();
   const pending = pendingGenerationsForUser(user.id).map((g) => g.id);
 
@@ -20,12 +25,12 @@ export default async function GeneratePage({ searchParams }: PageProps<"/generat
   if (remixId) {
     const found = getRemixSource(remixId);
     const src = found && canViewTrack(user.id, found) ? found : undefined;
-    if (!src) remixError = "That song isn't available to remix any more.";
-    else if (!canRemix(user, src)) remixError = `${src.username} has turned off remixes for that song.`;
+    if (!src) remixError = m.generate.remixUnavailable;
+    else if (!canRemix(user, src)) remixError = fmt(m.generate.remixOff, { name: src.username });
     else
       remix = {
         id: src.id,
-        title: src.title ?? "Untitled",
+        title: src.title ?? m.common.untitled,
         username: src.username,
         lyrics: src.lyrics,
         style: src.style_tags,
@@ -38,21 +43,11 @@ export default async function GeneratePage({ searchParams }: PageProps<"/generat
     <div className="mx-auto flex max-w-3xl flex-col gap-8">
       <div>
         <h1 className="text-4xl font-semibold sm:text-5xl">
-          {remix ? (
-            <>
-              Let&apos;s flip it, <span className="text-brand">{user.username}</span>
-            </>
-          ) : (
-            <>
-              What are we making, <span className="text-brand">{user.username}</span>?
-            </>
-          )}
+          {rich(remix ? m.generate.headingRemix : m.generate.heading, {
+            name: <span className="text-brand">{user.username}</span>,
+          })}
         </h1>
-        <p className="mt-3 text-muted">
-          {remix
-            ? "Same melody, brand-new outfit. Pick a style and we'll re-record it — two takes, as always."
-            : "Every song comes in two takes — keep your favourite, or keep both. We won't judge."}
-        </p>
+        <p className="mt-3 text-muted">{remix ? m.generate.blurbRemix : m.generate.blurb}</p>
       </div>
       {remixError && (
         <p role="alert" className="rounded-xl bg-warn/10 px-4 py-3 text-sm text-warn">

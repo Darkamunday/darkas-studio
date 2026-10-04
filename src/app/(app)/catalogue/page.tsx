@@ -9,13 +9,18 @@ import { btnPrimary, card } from "@/components/ui";
 import { FilterBar } from "./filter-bar";
 import { PendingRefresher } from "./pending-refresher";
 import { TrackCard } from "./track-card";
+import { getI18n } from "@/lib/i18n/server";
+import { fmt, plural, rich } from "@/lib/i18n/format";
 
-export const metadata: Metadata = { title: "Catalogue" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getI18n()).m.meta.catalogue };
+}
 
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) || undefined;
 
 export default async function CataloguePage({ searchParams }: PageProps<"/catalogue">) {
   const user = await requireUser();
+  const { locale, m } = await getI18n();
   const sp = await searchParams;
   const filters = { genre: one(sp.genre), creator: one(sp.creator) };
 
@@ -30,20 +35,16 @@ export default async function CataloguePage({ searchParams }: PageProps<"/catalo
     <div className="flex flex-col gap-8">
       <div className="flex flex-wrap items-end justify-between gap-6">
         <div>
-          <h1 className="text-4xl font-semibold sm:text-5xl">The catalogue</h1>
+          <h1 className="text-4xl font-semibold sm:text-5xl">{m.catalogue.heading}</h1>
           <p className="mt-3 text-muted">
-            {filtered ? (
-              <>
-                {tracks.length} {tracks.length === 1 ? "track" : "tracks"} matching
-              </>
-            ) : tracks.length ? (
-              <>
-                {tracks.length} {tracks.length === 1 ? "track" : "tracks"} from {facets.creators.length}{" "}
-                {facets.creators.length === 1 ? "artist" : "artists"}. Press play on something.
-              </>
-            ) : (
-              "Everything the crew makes lands here."
-            )}
+            {filtered
+              ? plural(locale, m.catalogue.matching, tracks.length)
+              : tracks.length
+                ? fmt(m.catalogue.summary, {
+                    tracks: plural(locale, m.catalogue.tracks, tracks.length),
+                    artists: plural(locale, m.catalogue.artists, facets.creators.length),
+                  })
+                : m.catalogue.emptyBlurb}
           </p>
         </div>
         {(tracks.length > 0 || filtered) && <FilterBar genres={facets.genres} creators={facets.creators} current={filters} />}
@@ -59,7 +60,7 @@ export default async function CataloguePage({ searchParams }: PageProps<"/catalo
               <div className="flex flex-col gap-2 p-5">
                 <p className="line-clamp-2 font-medium">{g.prompt ?? g.title ?? g.style}</p>
                 <p className="text-sm text-subtle">
-                  <span className="font-medium text-muted">{g.username}</span> is cooking something up…
+                  {rich(m.catalogue.cooking, { name: <span className="font-medium text-muted">{g.username}</span> })}
                 </p>
               </div>
             </div>
@@ -71,14 +72,10 @@ export default async function CataloguePage({ searchParams }: PageProps<"/catalo
       {tracks.length === 0 ? (
         <div className={`${card} flex flex-col items-center px-6 py-16 text-center`}>
           <Equalizer className="h-12" bars={5} still />
-          <h2 className="mt-6 text-2xl font-semibold">{filtered ? "Nothing matches that" : "The jukebox is hungry"}</h2>
-          <p className="mt-2 max-w-sm text-muted">
-            {filtered
-              ? "Try a different genre or creator — or clear the filters and browse everything."
-              : "No songs yet. Be the legend who makes the first one."}
-          </p>
+          <h2 className="mt-6 text-2xl font-semibold">{filtered ? m.catalogue.noMatchHeading : m.catalogue.emptyHeading}</h2>
+          <p className="mt-2 max-w-sm text-muted">{filtered ? m.catalogue.noMatchText : m.catalogue.emptyText}</p>
           <Link href={filtered ? "/catalogue" : "/generate"} className={`${btnPrimary} mt-6`}>
-            {filtered ? "Clear filters" : "Make the first song"}
+            {filtered ? m.catalogue.clearFilters : m.catalogue.makeFirst}
           </Link>
         </div>
       ) : (

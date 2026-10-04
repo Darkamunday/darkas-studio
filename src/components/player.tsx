@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { fmt } from "@/lib/i18n/format";
+import { useI18n } from "@/lib/i18n/client";
 
 function formatTime(s: number) {
   if (!Number.isFinite(s) || s < 0) return "0:00";
@@ -42,6 +44,7 @@ type Props = {
 };
 
 export function Player({ src, seed, duration: knownDuration, compact = false }: Props) {
+  const { m } = useI18n();
   const audioRef = useRef<HTMLAudioElement>(null);
   const barsRef = useRef<HTMLDivElement>(null);
   const [playing, setPlaying] = useState(false);
@@ -130,7 +133,7 @@ export function Player({ src, seed, duration: knownDuration, compact = false }: 
       <button
         type="button"
         onClick={toggle}
-        aria-label={playing ? "Pause" : "Play"}
+        aria-label={playing ? m.common.pause : m.common.play}
         className={`grid flex-none place-items-center rounded-full bg-brand text-white shadow-glow transition hover:brightness-110 active:scale-95 ${
           compact ? "h-9 w-9" : "h-11 w-11"
         }`}
@@ -154,11 +157,11 @@ export function Player({ src, seed, duration: knownDuration, compact = false }: 
           ref={barsRef}
           role="slider"
           tabIndex={0}
-          aria-label="Seek"
+          aria-label={m.common.seek}
           aria-valuemin={0}
           aria-valuemax={Math.round(duration)}
           aria-valuenow={Math.round(time)}
-          aria-valuetext={`${formatTime(time)} of ${formatTime(duration)}`}
+          aria-valuetext={fmt(m.common.timeOf, { time: formatTime(time), total: formatTime(duration) })}
           onPointerDown={onPointerDown}
           onPointerMove={(e) => e.buttons === 1 && e.currentTarget.hasPointerCapture(e.pointerId) && seekFromPointer(e.clientX)}
           onKeyDown={onKeyDown}
@@ -176,7 +179,7 @@ export function Player({ src, seed, duration: knownDuration, compact = false }: 
           })}
         </div>
         <div className="mt-1 flex justify-between text-[11px] tabular-nums text-subtle">
-          <span>{error ? "Couldn't load audio" : formatTime(time)}</span>
+          <span>{error ? m.common.audioError : formatTime(time)}</span>
           <span>{duration ? formatTime(duration) : "--:--"}</span>
         </div>
       </div>

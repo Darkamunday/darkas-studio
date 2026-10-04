@@ -37,33 +37,42 @@ export type SunoRecord = {
   clips: SunoClip[];
 };
 
+/** Keys into the `studioErrors` messages, so the user sees it in their own language. */
+export type SunoErrorReason =
+  | "not_configured"
+  | "bad_key"
+  | "busy"
+  | "too_long"
+  | "no_credits"
+  | "rate_limited"
+  | "maintenance"
+  | "generic";
+
 export class SunoError extends Error {
   constructor(
-    message: string,
+    public reason: SunoErrorReason,
     public code?: number,
   ) {
-    super(message);
+    super(reason);
   }
 }
 
-const FRIENDLY_ERRORS: Record<number, string> = {
-  401: "The studio's music service rejected its key — let the admin know.",
-  405: "The studio is swamped — give it a minute.",
-  413: "That's a bit too long — try trimming it down.",
-  429: "The studio is out of credits — let the admin know.",
-  430: "Too many requests at once — try again shortly.",
-  455: "The studio is under maintenance — try again later.",
+const REASONS: Record<number, SunoErrorReason> = {
+  401: "bad_key",
+  405: "busy",
+  413: "too_long",
+  429: "no_credits",
+  430: "rate_limited",
+  455: "maintenance",
 };
 
-// SunoError messages are shown to users, so they never name the provider;
-// the raw details go to the server log instead.
-const GENERIC_ERROR = "The studio hit a snag — try again in a moment.";
+// The texts shown for these reasons never name the provider; the raw details go to the server log instead.
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
   const key = process.env.SUNO_API_KEY;
   if (!key) {
     console.error("[suno] SUNO_API_KEY is not set");
-    throw new SunoError("The studio isn't set up yet — let the admin know.");
+    throw new SunoError("not_configured");
   }
   const res = await fetch(`${BASE}${path}`, {
     ...init,
@@ -74,11 +83,11 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   const body = (await res.json().catch(() => null)) as { code: number; msg: string; data: T } | null;
   if (!body) {
     console.error(`[suno] ${path} returned HTTP ${res.status} with no JSON body`);
-    throw new SunoError(GENERIC_ERROR, res.status);
+    throw new SunoError("generic", res.status);
   }
   if (body.code !== 200) {
     console.error(`[suno] ${path} failed: code=${body.code} msg=${body.msg}`);
-    throw new SunoError(FRIENDLY_ERRORS[body.code] ?? GENERIC_ERROR, body.code);
+    throw new SunoError(REASONS[body.code] ?? "generic", body.code);
   }
   return body.data;
 }

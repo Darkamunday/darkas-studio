@@ -7,6 +7,8 @@ import { MODELS, MODEL_LABELS, SIMPLE_PROMPT_MAX, TITLE_MAX, limitsFor, type Sun
 import { Equalizer } from "@/components/equalizer";
 import { Player } from "@/components/player";
 import { btnGhost, btnPrimary, card, chip, input, label } from "@/components/ui";
+import { fmt, lookup } from "@/lib/i18n/format";
+import { useI18n } from "@/lib/i18n/client";
 import { generateAdvanced, generateRemix, generateSimple, type GenerateState } from "./actions";
 
 type Mode = "simple" | "advanced";
@@ -21,40 +23,6 @@ export type RemixSourceInfo = {
   coverUrl: string | null;
 };
 type FormProps = { moods: string[]; onCreated: (id: number) => void };
-
-// ---- "Surprise me" ideas -------------------------------------------------------
-
-const SIMPLE_IDEAS = [
-  "A sunny UK garage track about missing the last train home, soulful female vocal",
-  "Lo-fi hip hop for a rainy Sunday, vinyl crackle, mellow Rhodes piano",
-  "An 80s synthwave anthem about driving to the seaside at midnight",
-  "A cosy acoustic folk song about the best cup of tea in the world",
-  "High-energy drum and bass with a euphoric vocal hook about summer festivals",
-  "A dramatic sea shanty about losing the TV remote",
-  "Dreamy bedroom pop about texting someone at 3am, soft male vocal",
-  "An upbeat Motown-style love song about a dog called Biscuit",
-];
-
-const ADVANCED_IDEAS = [
-  {
-    title: "Night Bus Home",
-    style: "UK garage, 2-step, soulful female vocals, warm sub bass, shuffled hats, 134bpm",
-    lyrics:
-      "[Verse]\nTop deck, front seat, city lights running\nFogged-up window, drawing hearts in the rain\n\n[Chorus]\nOn the night bus home, I'm thinking 'bout you\nEvery stop is a heartbeat, every light is a clue\n\n[Bridge]\nRing the bell, ring the bell\nI'm almost there",
-  },
-  {
-    title: "Kettle's On",
-    style: "indie folk, acoustic guitar, hand claps, cheerful, warm male and female harmonies",
-    lyrics:
-      "[Verse]\nGrey sky morning, slippers on the stair\nBiscuits in the cupboard, if you know where\n\n[Chorus]\nKettle's on, kettle's on\nWhatever's wrong, the kettle's on\n\n[Outro]\nTwo sugars, love",
-  },
-  {
-    title: "Neon Tide",
-    style: "synthwave, retro 80s, gated reverb drums, arpeggiated synths, dreamy female vocals",
-    lyrics:
-      "[Intro]\n\n[Verse]\nChrome and cherry, the coast road hums\nWe chase the tide till the morning comes\n\n[Chorus]\nRide the neon tide\nNothing left to hide\n\n[Outro]",
-  },
-];
 
 const pick = <T,>(list: T[], not?: T) => {
   const options = list.length > 1 ? list.filter((x) => x !== not) : list;
@@ -74,6 +42,7 @@ export function GenerateStudio({
   initialPending: number[];
   remix: RemixSourceInfo | null;
 }) {
+  const { m } = useI18n();
   const [mode, setMode] = useState<Mode>("simple");
   const [watching, setWatching] = useState<number[]>(initialPending);
 
@@ -81,7 +50,7 @@ export function GenerateStudio({
 
   const inStudio = watching.length > 0 && (
     <section className="flex flex-col gap-4">
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-subtle">In the studio</h2>
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-subtle">{m.generate.inStudio}</h2>
       {watching.map((id) => (
         <GenerationProgress key={id} id={id} />
       ))}
@@ -106,18 +75,18 @@ export function GenerateStudio({
             mode === "advanced" ? "translate-x-full" : ""
           }`}
         />
-        {(["simple", "advanced"] as const).map((m) => (
+        {(["simple", "advanced"] as const).map((tab) => (
           <button
-            key={m}
+            key={tab}
             type="button"
             role="tab"
-            aria-selected={mode === m}
-            onClick={() => setMode(m)}
-            className={`relative z-10 rounded-xl px-6 py-2 font-medium capitalize transition-colors ${
-              mode === m ? "text-white" : "text-muted hover:text-fg"
+            aria-selected={mode === tab}
+            onClick={() => setMode(tab)}
+            className={`relative z-10 rounded-xl px-6 py-2 font-medium transition-colors ${
+              mode === tab ? "text-white" : "text-muted hover:text-fg"
             }`}
           >
-            {m}
+            {m.generate[tab]}
           </button>
         ))}
       </div>
@@ -138,6 +107,7 @@ export function GenerateStudio({
 // ---- simple ------------------------------------------------------------------
 
 function SimpleForm({ moods, onCreated }: FormProps) {
+  const { m } = useI18n();
   const [prompt, setPrompt] = useState("");
   const [mood, setMood] = useState<string | null>(null);
   const [instrumental, setInstrumental] = useState(false);
@@ -155,13 +125,13 @@ function SimpleForm({ moods, onCreated }: FormProps) {
   return (
     <form action={formAction} className={`${card} flex flex-col gap-6 p-6 sm:p-8`}>
       <Field
-        label="Describe the song you want"
+        label={m.generate.describe}
         count={prompt.length}
         max={SIMPLE_PROMPT_MAX}
         errors={errors?.prompt}
         action={
-          <button type="button" onClick={() => setPrompt((p) => pick(SIMPLE_IDEAS, p))} className={`${btnGhost} whitespace-nowrap text-accent-fg`}>
-            <Sparkle /> Surprise me
+          <button type="button" onClick={() => setPrompt((p) => pick(m.generate.simpleIdeas, p))} className={`${btnGhost} whitespace-nowrap text-accent-fg`}>
+            <Sparkle /> {m.generate.surprise}
           </button>
         }
       >
@@ -172,7 +142,7 @@ function SimpleForm({ moods, onCreated }: FormProps) {
           rows={5}
           maxLength={SIMPLE_PROMPT_MAX}
           required
-          placeholder="Genre, mood, what it's about, who's singing… the more vibes the better."
+          placeholder={m.generate.promptPlaceholder}
           className={`${input} resize-y text-lg leading-relaxed`}
         />
       </Field>
@@ -188,6 +158,7 @@ function SimpleForm({ moods, onCreated }: FormProps) {
 const SECTION_TAGS = ["Intro", "Verse", "Pre-Chorus", "Chorus", "Bridge", "Outro"];
 
 function AdvancedForm({ moods, onCreated, defaultModel }: FormProps & { defaultModel: SunoModel }) {
+  const { m } = useI18n();
   const [title, setTitle] = useState("");
   const [lyrics, setLyrics] = useState("");
   const [style, setStyle] = useState("");
@@ -205,7 +176,8 @@ function AdvancedForm({ moods, onCreated, defaultModel }: FormProps & { defaultM
   const limits = limitsFor(model);
 
   const surprise = () => {
-    const idea = pick(ADVANCED_IDEAS, ADVANCED_IDEAS.find((i) => i.title === title));
+    const ideas = m.generate.advancedIdeas;
+    const idea = pick(ideas, ideas.find((i) => i.title === title));
     setTitle(idea.title);
     setStyle(idea.style);
     setLyrics(idea.lyrics);
@@ -230,50 +202,50 @@ function AdvancedForm({ moods, onCreated, defaultModel }: FormProps & { defaultM
   return (
     <form action={formAction} className={`${card} flex flex-col gap-6 p-6 sm:p-8`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-muted">Write your own lyrics and dial in the exact sound.</p>
+        <p className="text-sm text-muted">{m.generate.advancedIntro}</p>
         <button type="button" onClick={surprise} className={`${btnGhost} whitespace-nowrap text-accent-fg`}>
-          <Sparkle /> Fill with an example
+          <Sparkle /> {m.generate.fillExample}
         </button>
       </div>
 
       <div className="grid gap-6 sm:grid-cols-[1fr_12rem]">
-        <Field label="Title" count={title.length} max={TITLE_MAX} errors={errors?.title}>
+        <Field label={m.generate.title} count={title.length} max={TITLE_MAX} errors={errors?.title}>
           <input
             name="title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             maxLength={TITLE_MAX}
             required
-            placeholder="Last Train Home"
+            placeholder={m.generate.titlePlaceholder}
             className={input}
           />
         </Field>
-        <Field label="Model" errors={errors?.model}>
+        <Field label={m.generate.model} errors={errors?.model}>
           <select name="model" value={model} onChange={(e) => setModel(e.target.value as SunoModel)} className={`${input} cursor-pointer`}>
-            {MODELS.map((m) => (
-              <option key={m} value={m}>
-                {MODEL_LABELS[m]}
-                {m === defaultModel ? " (default)" : ""}
+            {MODELS.map((opt) => (
+              <option key={opt} value={opt}>
+                {MODEL_LABELS[opt]}
+                {opt === defaultModel ? ` ${m.generate.modelDefault}` : ""}
               </option>
             ))}
           </select>
         </Field>
       </div>
 
-      <Field label="Style" hint="genre, vibe, instruments, vocals, tempo" count={style.length} max={limits.style} errors={errors?.style}>
+      <Field label={m.generate.style} hint={m.generate.styleHint} count={style.length} max={limits.style} errors={errors?.style}>
         <textarea
           name="style"
           value={style}
           onChange={(e) => setStyle(e.target.value)}
           rows={2}
           required
-          placeholder="UK garage, 2-step, female vocals, warm bass, 140bpm"
+          placeholder={m.generate.stylePlaceholder}
           className={`${input} resize-y`}
         />
       </Field>
 
       {!instrumental && (
-        <Field label="Lyrics" count={lyrics.length} max={limits.lyrics} errors={errors?.lyrics}>
+        <Field label={m.generate.lyrics} count={lyrics.length} max={limits.lyrics} errors={errors?.lyrics}>
           <div className="flex flex-wrap gap-1.5">
             {SECTION_TAGS.map((tag) => (
               <button
@@ -292,7 +264,7 @@ function AdvancedForm({ moods, onCreated, defaultModel }: FormProps & { defaultM
             value={lyrics}
             onChange={(e) => setLyrics(e.target.value)}
             rows={12}
-            placeholder={"[Verse]\nMissed the last train, standing in the rain\n\n[Chorus]\nTake me home…"}
+            placeholder={m.generate.lyricsPlaceholder}
             className={`${input} resize-y font-mono text-sm leading-relaxed`}
           />
         </Field>
@@ -310,6 +282,7 @@ function AdvancedForm({ moods, onCreated, defaultModel }: FormProps & { defaultM
 const REMIX_MODELS = ["V6", "V6_WILD", "V6_MINI"] as const satisfies readonly SunoModel[];
 
 function RemixForm({ source, moods, onCreated }: FormProps & { source: RemixSourceInfo }) {
+  const { m } = useI18n();
   const [title, setTitle] = useState(`${source.title} (Remix)`.slice(0, TITLE_MAX));
   const [style, setStyle] = useState("");
   const [lyrics, setLyrics] = useState(source.lyrics ?? "");
@@ -335,49 +308,49 @@ function RemixForm({ source, moods, onCreated }: FormProps & { source: RemixSour
           <div className="h-16 w-16 flex-none rounded-xl bg-brand opacity-50" />
         )}
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-wider text-accent-fg">Remixing</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-accent-fg">{m.generate.remixing}</p>
           <p className="truncate font-semibold">{source.title}</p>
-          <p className="truncate text-sm text-muted">by {source.username}</p>
+          <p className="truncate text-sm text-muted">{fmt(m.generate.by, { name: source.username })}</p>
         </div>
         <Link href="/generate" className={`${btnGhost} whitespace-nowrap`}>
-          Cancel
+          {m.generate.cancel}
         </Link>
       </div>
 
       <div className="grid gap-6 sm:grid-cols-[1fr_12rem]">
-        <Field label="Title" count={title.length} max={TITLE_MAX} errors={errors?.title}>
+        <Field label={m.generate.title} count={title.length} max={TITLE_MAX} errors={errors?.title}>
           <input name="title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={TITLE_MAX} required className={input} />
         </Field>
-        <Field label="Model" errors={errors?.model}>
+        <Field label={m.generate.model} errors={errors?.model}>
           <select name="model" value={model} onChange={(e) => setModel(e.target.value as typeof model)} className={`${input} cursor-pointer`}>
-            {REMIX_MODELS.map((m) => (
-              <option key={m} value={m}>
-                {MODEL_LABELS[m]}
+            {REMIX_MODELS.map((opt) => (
+              <option key={opt} value={opt}>
+                {MODEL_LABELS[opt]}
               </option>
             ))}
           </select>
         </Field>
       </div>
 
-      <Field label="New style" hint="what should it sound like now?" count={style.length} max={1000} errors={errors?.style}>
+      <Field label={m.generate.newStyle} hint={m.generate.newStyleHint} count={style.length} max={1000} errors={errors?.style}>
         <textarea
           name="style"
           value={style}
           onChange={(e) => setStyle(e.target.value)}
           rows={2}
           required
-          placeholder="e.g. UK garage, 2-step, soulful female vocals, 134bpm"
+          placeholder={m.generate.newStylePlaceholder}
           className={`${input} resize-y`}
         />
         {source.style && (
           <p className="line-clamp-2 text-xs text-subtle" title={source.style}>
-            <span className="font-medium text-muted">Original:</span> {source.style}
+            <span className="font-medium text-muted">{m.generate.original}</span> {source.style}
           </p>
         )}
       </Field>
 
       {!instrumental && (
-        <Field label="Lyrics" hint={source.lyrics ? "the original words — tweak away" : "the original was instrumental, so add some words"} count={lyrics.length} max={5000} errors={errors?.lyrics}>
+        <Field label={m.generate.lyrics} hint={source.lyrics ? m.generate.lyricsHintOriginal : m.generate.lyricsHintAdd} count={lyrics.length} max={5000} errors={errors?.lyrics}>
           <textarea
             name="lyrics"
             value={lyrics}
@@ -389,7 +362,7 @@ function RemixForm({ source, moods, onCreated }: FormProps & { source: RemixSour
       )}
 
       <MoodPicker moods={moods} value={mood} onChange={setMood} />
-      <SubmitRow pending={pending} instrumental={instrumental} onInstrumental={setInstrumental} label="Create remix" />
+      <SubmitRow pending={pending} instrumental={instrumental} onInstrumental={setInstrumental} label={m.generate.createRemix} />
       <FormError state={state} />
     </form>
   );
@@ -452,16 +425,17 @@ function Field({
   );
 }
 
-function MoodPicker({ moods, value, onChange }: { moods: string[]; value: string | null; onChange: (m: string | null) => void }) {
+function MoodPicker({ moods, value, onChange }: { moods: string[]; value: string | null; onChange: (mood: string | null) => void }) {
+  const { m } = useI18n();
   return (
     <div className="flex flex-col gap-2">
       <span className={label}>
-        Mood <span className="font-normal text-subtle">· optional</span>
+        {m.generate.mood} <span className="font-normal text-subtle">· {m.generate.optional}</span>
       </span>
       <div className="flex flex-wrap gap-2">
-        {moods.map((m) => (
-          <button key={m} type="button" aria-pressed={value === m} onClick={() => onChange(value === m ? null : m)} className={chip(value === m)}>
-            {m}
+        {moods.map((mood) => (
+          <button key={mood} type="button" aria-pressed={value === mood} onClick={() => onChange(value === mood ? null : mood)} className={chip(value === mood)}>
+            {lookup(m.moods, mood)}
           </button>
         ))}
       </div>
@@ -474,29 +448,30 @@ function SubmitRow({
   pending,
   instrumental,
   onInstrumental,
-  label: submitLabel = "Create song",
+  label: submitLabel,
 }: {
   pending: boolean;
   instrumental: boolean;
   onInstrumental: (v: boolean) => void;
   label?: string;
 }) {
+  const { m } = useI18n();
   // Kept in state (not left to the browser) so the choice survives the form reset after each submit.
   const [isPrivate, setPrivate] = useState(false);
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line pt-6">
       <div className="flex flex-wrap gap-x-6 gap-y-3">
-        <Switch name="instrumental" checked={instrumental} onChange={onInstrumental} label="Instrumental" hint="no vocals" />
-        <Switch name="private" checked={isPrivate} onChange={setPrivate} label="Private" hint="only you can see it" />
+        <Switch name="instrumental" checked={instrumental} onChange={onInstrumental} label={m.common.instrumental} hint={m.generate.noVocals} />
+        <Switch name="private" checked={isPrivate} onChange={setPrivate} label={m.common.private} hint={m.generate.onlyYou} />
       </div>
 
       <button type="submit" disabled={pending} className={`${btnPrimary} w-full px-7 py-3 text-base sm:w-auto`}>
         {pending ? (
           <>
-            <Equalizer className="h-4" bars={3} /> Sending to the studio…
+            <Equalizer className="h-4" bars={3} /> {m.generate.sending}
           </>
         ) : (
-          submitLabel
+          (submitLabel ?? m.generate.createSong)
         )}
       </button>
     </div>
@@ -538,12 +513,12 @@ function FormError({ state }: { state: GenerateState }) {
 
 // ---- progress ------------------------------------------------------------------
 
-const STAGES: { key: ClientGeneration["status"][]; blurb: string }[] = [
-  { key: ["pending"], blurb: "Tuning the instruments…" },
-  { key: ["text_ready"], blurb: "Scribbling lyrics on a napkin…" },
-  { key: ["first_ready"], blurb: "First take's in — mastering the rest…" },
-  { key: ["complete"], blurb: "Fresh out the studio!" },
-];
+const STAGES = [
+  { key: ["pending"], blurb: "stagePending" },
+  { key: ["text_ready"], blurb: "stageText" },
+  { key: ["first_ready"], blurb: "stageFirst" },
+  { key: ["complete"], blurb: "stageComplete" },
+] as const satisfies { key: ClientGeneration["status"][]; blurb: string }[];
 
 const formatElapsed = (s: number) => (s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`);
 
@@ -558,6 +533,7 @@ function useElapsed(since: number | undefined, running: boolean) {
 }
 
 function GenerationProgress({ id }: { id: number }) {
+  const { m } = useI18n();
   const [gen, setGen] = useState<ClientGeneration | null>(null);
   const [netError, setNetError] = useState(false);
 
@@ -587,7 +563,7 @@ function GenerationProgress({ id }: { id: number }) {
 
   const failed = gen?.status === "failed";
   const done = gen?.status === "complete";
-  const stageIndex = gen ? Math.max(0, STAGES.findIndex((s) => s.key.includes(gen.status))) : 0;
+  const stageIndex = gen ? Math.max(0, STAGES.findIndex((s) => (s.key as readonly string[]).includes(gen.status))) : 0;
   const elapsed = useElapsed(gen?.createdAt, !done && !failed);
   // Honest-ish progress: stage-based, creeping forward with time, never "done" until it is.
   const pct = done ? 100 : Math.min(92, 8 + stageIndex * 28 + Math.min(20, elapsed / 4));
@@ -605,10 +581,14 @@ function GenerationProgress({ id }: { id: number }) {
         <div className="min-w-0 flex-1">
           <p className="line-clamp-2 font-medium">{gen?.prompt ?? "…"}</p>
           <p className={`mt-0.5 text-sm ${failed ? "text-danger" : "text-muted"}`}>
-            {failed ? `Didn't make it — ${gen?.error ?? "unknown error"}` : STAGES[stageIndex].blurb}
-            {!done && !failed && elapsed > 0 && <span className="text-subtle"> · {formatElapsed(elapsed)} (usually about a minute)</span>}
+            {failed
+              ? fmt(m.generate.failed, { error: lookup(m.generationErrors, gen?.error) ?? m.generate.unknownError })
+              : m.generate[STAGES[stageIndex].blurb]}
+            {!done && !failed && elapsed > 0 && (
+              <span className="text-subtle"> · {fmt(m.generate.elapsed, { time: formatElapsed(elapsed) })}</span>
+            )}
           </p>
-          {netError && <p className="mt-1 text-xs text-warn">Lost contact with the studio — retrying…</p>}
+          {netError && <p className="mt-1 text-xs text-warn">{m.generate.lostContact}</p>}
         </div>
       </div>
 
@@ -630,7 +610,7 @@ function GenerationProgress({ id }: { id: number }) {
               )}
               <div className="flex min-w-0 flex-1 flex-col justify-between gap-1">
                 <p className="truncate text-sm font-semibold">
-                  {t.title ?? "Untitled"} <span className="font-normal text-subtle">· take {i + 1}</span>
+                  {t.title ?? m.common.untitled} <span className="font-normal text-subtle">· {fmt(m.generate.take, { n: i + 1 })}</span>
                 </p>
                 {t.audioUrl ? <Player src={t.audioUrl} seed={t.id} duration={t.duration} compact /> : <div className="skeleton h-8 rounded-lg" />}
               </div>
@@ -642,7 +622,7 @@ function GenerationProgress({ id }: { id: number }) {
       {done && (
         <div className="border-t border-line px-5 py-3">
           <Link href="/catalogue" className="text-sm font-medium text-accent-fg hover:underline">
-            Saved to the catalogue →
+            {m.generate.saved}
           </Link>
         </div>
       )}

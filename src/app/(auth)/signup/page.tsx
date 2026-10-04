@@ -2,22 +2,24 @@ import type { Metadata } from "next";
 import { inviteStatus, userCount } from "@/lib/auth";
 import { AuthForm } from "../auth-form";
 import { signup } from "../actions";
+import { getI18n } from "@/lib/i18n/server";
 
-export const metadata: Metadata = { title: "Sign up" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getI18n()).m.meta.signup };
+}
 
 export default async function SignupPage({ searchParams }: PageProps<"/signup">) {
   const firstUser = userCount() === 0;
   const raw = (await searchParams).code;
   const code = (Array.isArray(raw) ? raw[0] : raw)?.trim().toUpperCase() || undefined;
   const status = code ? inviteStatus(code) : null;
+  const { m } = await getI18n();
 
-  let heading = firstUser ? "Set up the studio" : "Join the studio";
-  let blurb = firstUser
-    ? "No one's here yet — this first account becomes the admin."
-    : "Bring your invite code and pull up a chair.";
+  let heading = firstUser ? m.auth.setupHeading : m.auth.joinHeading;
+  let blurb = firstUser ? m.auth.setupBlurb : m.auth.joinBlurb;
   if (!firstUser && status === "valid") {
-    heading = "You're invited!";
-    blurb = "Your code's all filled in — just pick a username and password.";
+    heading = m.auth.invitedHeading;
+    blurb = m.auth.invitedBlurb;
   }
 
   return (
@@ -26,9 +28,7 @@ export default async function SignupPage({ searchParams }: PageProps<"/signup">)
       <p className="mb-8 mt-2 text-muted">{blurb}</p>
       {!firstUser && status && status !== "valid" && (
         <p role="alert" className="mb-6 rounded-xl bg-warn/10 px-3 py-2 text-sm text-warn">
-          {status === "used"
-            ? "That invite link has already been used. Ask for a fresh one."
-            : "That invite link isn't valid (it may have been revoked). Ask for a fresh one."}
+          {status === "used" ? m.auth.inviteLinkUsed : m.auth.inviteLinkInvalid}
         </p>
       )}
       <AuthForm

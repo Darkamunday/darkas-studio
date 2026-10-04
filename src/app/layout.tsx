@@ -1,16 +1,22 @@
 import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google";
 import { cookies } from "next/headers";
+import { LOCALE_INFO } from "@/lib/i18n/config";
+import { I18nProvider } from "@/lib/i18n/client";
+import { getI18n } from "@/lib/i18n/server";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 const bricolage = Bricolage_Grotesque({ variable: "--font-bricolage", subsets: ["latin"] });
 
-export const metadata: Metadata = {
-  title: { default: "Darka's Studio", template: "%s · Darka's Studio" },
-  description: "Make songs with your friends.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { m } = await getI18n();
+  return {
+    title: { default: "Darka's Studio", template: "%s · Darka's Studio" },
+    description: m.meta.description,
+  };
+}
 
 export const viewport: Viewport = {
   themeColor: [
@@ -21,10 +27,11 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const light = (await cookies()).get("theme")?.value === "light";
+  const { locale } = await getI18n();
 
   return (
     <html
-      lang="en-GB"
+      lang={LOCALE_INFO[locale].tag}
       className={`${geistSans.variable} ${geistMono.variable} ${bricolage.variable} ${light ? "light" : ""} h-full antialiased`}
     >
       <body className="relative flex min-h-full flex-col overflow-x-hidden bg-bg text-fg">
@@ -34,7 +41,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           <div className="absolute -right-32 -top-40 h-[420px] w-[420px] animate-float rounded-full bg-violet/20 blur-[110px] [animation-delay:-7s] light:bg-violet/12" />
           <div className="absolute left-1/3 -top-64 h-[360px] w-[360px] rounded-full bg-peach/10 blur-[120px]" />
         </div>
-        {children}
+        <I18nProvider locale={locale}>{children}</I18nProvider>
       </body>
     </html>
   );

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { CopyButton } from "@/components/copy-button";
 import { btnGhost, btnSecondary } from "@/components/ui";
+import { useI18n } from "@/lib/i18n/client";
 import { shareTrackAction, unshareTrackAction } from "./actions";
 
 const linkIcon = (
@@ -13,6 +14,7 @@ const linkIcon = (
 
 /** Creator-only: make a public link for this song, copy it, or stop sharing. */
 export function ShareButton({ trackId, initialUrl }: { trackId: number; initialUrl: string | null }) {
+  const { m } = useI18n();
   const [url, setUrl] = useState(initialUrl);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +37,7 @@ export function ShareButton({ trackId, initialUrl }: { trackId: number; initialU
       if (res.ok) {
         setUrl(null);
         setOpen(false);
-      } else setError(res.error ?? "Couldn't stop sharing.");
+      } else setError(res.error ?? m.catalogue.stopFailed);
     });
 
   return (
@@ -47,17 +49,17 @@ export function ShareButton({ trackId, initialUrl }: { trackId: number; initialU
           aria-expanded={open}
           className="inline-flex items-center gap-2 rounded-xl border border-pink/50 bg-pink/10 px-3 py-1.5 text-sm font-medium text-accent-fg transition hover:bg-pink/15"
         >
-          {linkIcon} Shared
+          {linkIcon} {m.catalogue.shared}
         </button>
       ) : (
         <button type="button" onClick={share} disabled={pending} className={btnSecondary}>
-          {linkIcon} {pending ? "Making link…" : "Share"}
+          {linkIcon} {pending ? m.catalogue.makingLink : m.catalogue.share}
         </button>
       )}
 
       {url && open && (
         <div className="flex w-full animate-pop flex-col gap-2 rounded-2xl border border-line bg-surface-2 p-3 text-sm">
-          <p className="text-muted">Anyone with this link can listen and download — no account needed.</p>
+          <p className="text-muted">{m.catalogue.shareNote}</p>
           <div className="flex gap-2">
             <input
               readOnly
@@ -67,16 +69,15 @@ export function ShareButton({ trackId, initialUrl }: { trackId: number; initialU
             />
             <CopyButton
               text={url}
-              label="Copy"
               className="rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white transition hover:brightness-110"
             />
           </div>
           <div className="flex items-center gap-1">
             <a href={url} target="_blank" rel="noreferrer" className={btnGhost}>
-              Open ↗
+              {m.catalogue.open}
             </a>
             <button type="button" onClick={stop} disabled={pending} className={`${btnGhost} ml-auto hover:text-danger`}>
-              {pending ? "Stopping…" : "Stop sharing"}
+              {pending ? m.catalogue.stopping : m.catalogue.stopSharing}
             </button>
           </div>
         </div>

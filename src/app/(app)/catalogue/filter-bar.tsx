@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
+import { useI18n } from "@/lib/i18n/client";
 
 type Facet = { value: string; n: number };
 
@@ -15,6 +16,7 @@ export function FilterBar({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { m } = useI18n();
 
   const set = (key: "genre" | "creator", value: string) => {
     const next = new URLSearchParams();
@@ -26,11 +28,11 @@ export function FilterBar({
 
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
-      <Select label="Genre" value={current.genre ?? ""} options={genres} onChange={(v) => set("genre", v)} />
-      <Select label="Creator" value={current.creator ?? ""} options={creators} onChange={(v) => set("creator", v)} />
+      <Select label={m.catalogue.genre} value={current.genre ?? ""} options={genres} onChange={(v) => set("genre", v)} />
+      <Select label={m.catalogue.creator} value={current.creator ?? ""} options={creators} onChange={(v) => set("creator", v)} />
       {(current.genre || current.creator) && (
         <button onClick={() => router.push(pathname)} className="rounded-lg px-2 py-1 text-muted transition hover:text-fg">
-          Clear ✕
+          {m.catalogue.clear}
         </button>
       )}
     </div>
@@ -42,6 +44,7 @@ function Select({ label, value, options, onChange }: { label: string; value: str
   const opts =
     value && !options.some((o) => o.value.toLowerCase() === value.toLowerCase()) ? [{ value, n: 0 }, ...options] : options;
   const active = Boolean(value);
+  const { m } = useI18n();
   return (
     <label
       className={`relative flex items-center gap-2 rounded-xl border py-1.5 pl-3 pr-8 transition ${
@@ -54,7 +57,7 @@ function Select({ label, value, options, onChange }: { label: string; value: str
         onChange={(e) => onChange(e.target.value)}
         className="cursor-pointer appearance-none bg-transparent font-medium text-fg outline-none"
       >
-        <option value="">All</option>
+        <option value="">{m.catalogue.all}</option>
         {opts.map((o) => (
           <option key={o.value} value={o.value}>
             {o.value} ({o.n})

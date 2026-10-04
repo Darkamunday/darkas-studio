@@ -182,10 +182,12 @@ const STATUS_MAP: Record<SunoTaskStatus, GenerationStatus> = {
   SENSITIVE_WORD_ERROR: "failed",
 };
 
-const FAILURE_MESSAGES: Partial<Record<SunoTaskStatus, string>> = {
-  SENSITIVE_WORD_ERROR: "Something in the prompt or lyrics got flagged — try rephrasing.",
-  CREATE_TASK_FAILED: "The studio couldn't start this one — give it another go.",
-  GENERATE_AUDIO_FAILED: "The studio couldn't finish the audio — give it another go.",
+// generations.error holds one of these codes (keys into the `generationErrors` messages), so it's
+// shown in each viewer's language. Rows from before translations hold English text, shown as-is.
+const FAILURE_CODES: Partial<Record<SunoTaskStatus, string>> = {
+  SENSITIVE_WORD_ERROR: "flagged",
+  CREATE_TASK_FAILED: "start_failed",
+  GENERATE_AUDIO_FAILED: "audio_failed",
 };
 
 function upsertClips(gen: GenerationRow, clips: SunoClip[]) {
@@ -309,10 +311,7 @@ async function doRefresh(id: number, force: boolean) {
   db.prepare("UPDATE generations SET last_polled_at = unixepoch() WHERE id = ?").run(id);
 
   if (now() - gen.created_at > TIMEOUT_SECONDS) {
-    db.prepare("UPDATE generations SET status = 'failed', error = ? WHERE id = ?").run(
-      "Timed out waiting for the studio — give it another go.",
-      id,
-    );
+    db.prepare("UPDATE generations SET status = 'failed', error = 'timeout' WHERE id = ?").run(id);
     return;
   }
 
@@ -331,7 +330,7 @@ async function doRefresh(id: number, force: boolean) {
     // The provider's own message may name it or be technical; log it, show ours.
     console.error(`[tracks] generation ${id} failed: ${record.status} ${record.errorMessage ?? ""}`);
     db.prepare("UPDATE generations SET status = 'failed', error = ? WHERE id = ?").run(
-      FAILURE_MESSAGES[record.status] ?? "The studio couldn't make this one — give it another go.",
+      FAILURE_CODES[record.status] ?? "generic",
       id,
     );
     return;

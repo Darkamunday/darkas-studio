@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useI18n } from "@/lib/i18n/client";
 
 export function NavLinks({ isAdmin, className = "" }: { isAdmin: boolean; className?: string }) {
   const pathname = usePathname();
+  const { m } = useI18n();
   const links = [
-    { href: "/generate", label: "Create" },
-    { href: "/catalogue", label: "Catalogue" },
-    ...(isAdmin ? [{ href: "/admin", label: "Admin" }] : []),
+    { href: "/generate", label: m.nav.create },
+    { href: "/catalogue", label: m.nav.catalogue },
+    ...(isAdmin ? [{ href: "/admin", label: m.nav.admin }] : []),
   ];
 
   return (

@@ -1,15 +1,16 @@
 import Link from "next/link";
 import type { CatalogueTrack } from "@/lib/tracks";
 import { Player } from "@/components/player";
+import { LOCALE_INFO } from "@/lib/i18n/config";
+import { lookup, rich } from "@/lib/i18n/format";
+import { getI18n } from "@/lib/i18n/server";
 import { btnSecondary, card, tag } from "@/components/ui";
 import { DeleteTrackButton } from "./delete-button";
 import { PrivateToggle } from "./private-toggle";
 import { RemixToggle } from "./remix-toggle";
 import { ShareButton } from "./share-button";
 
-const dateFmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Europe/London" });
-
-export function TrackCard({
+export async function TrackCard({
   track: t,
   canDelete,
   isOwner,
@@ -24,6 +25,8 @@ export function TrackCard({
   /** Remixing allowed for this viewer (creator switched it on, or it's their own song). */
   canRemix: boolean;
 }) {
+  const { locale, m } = await getI18n();
+  const dateFmt = new Intl.DateTimeFormat(LOCALE_INFO[locale].tag, { day: "numeric", month: "short", year: "numeric", timeZone: "Europe/London" });
   const hasCover = Boolean(t.image_path || t.source_image_url);
   // Simple mode: the user's description; advanced mode: their style box. Suno's expanded tags shown separately.
   const userPrompt = t.mode === "advanced" ? t.style : t.prompt;
@@ -49,13 +52,13 @@ export function TrackCard({
               {t.genre}
             </Link>
           )}
-          {t.mood && <span className="rounded-full bg-black/45 px-2.5 py-0.5 text-xs font-medium text-white backdrop-blur">{t.mood}</span>}
+          {t.mood && <span className="rounded-full bg-black/45 px-2.5 py-0.5 text-xs font-medium text-white backdrop-blur">{lookup(m.moods, t.mood)}</span>}
         </div>
       </div>
 
       <div className="flex flex-1 flex-col gap-3 p-5">
         <div>
-          <h2 className="text-lg font-semibold leading-snug">{t.title ?? "Untitled"}</h2>
+          <h2 className="text-lg font-semibold leading-snug">{t.title ?? m.common.untitled}</h2>
           <p className="mt-1 flex items-center gap-1.5 text-xs text-subtle">
             <span className="grid h-5 w-5 place-items-center rounded-md bg-brand text-[10px] font-bold uppercase text-white">
               {t.username.slice(0, 1)}
@@ -65,9 +68,9 @@ export function TrackCard({
             </Link>
             · {dateFmt.format(new Date(t.created_at * 1000))}
             <span className="ml-auto flex gap-1">
-              {t.is_private ? <span className={tag.mood}>Private</span> : null}
-              {t.share_token && !isOwner ? <span className={tag.plain}>Shared publicly</span> : null}
-              {t.instrumental ? <span className={tag.plain}>Instrumental</span> : null}
+              {t.is_private ? <span className={tag.mood}>{m.common.private}</span> : null}
+              {t.share_token && !isOwner ? <span className={tag.plain}>{m.catalogue.sharedPublicly}</span> : null}
+              {t.instrumental ? <span className={tag.plain}>{m.common.instrumental}</span> : null}
             </span>
           </p>
         </div>
@@ -76,8 +79,10 @@ export function TrackCard({
           <p className="flex items-center gap-1.5 text-xs text-muted">
             <RemixIcon />
             <span>
-              Remix of <span className="font-medium text-fg">{t.remix_of_title ?? "Untitled"}</span> by{" "}
-              <span className="font-medium text-fg">{t.remix_of_username}</span>
+              {rich(m.common.remixOf, {
+                title: <span className="font-medium text-fg">{t.remix_of_title ?? m.common.untitled}</span>,
+                user: <span className="font-medium text-fg">{t.remix_of_username}</span>,
+              })}
             </span>
           </p>
         )}
@@ -85,7 +90,7 @@ export function TrackCard({
         {userPrompt && <p className="line-clamp-3 text-sm text-muted">“{userPrompt}”</p>}
         {t.style_tags && t.style_tags !== userPrompt && (
           <p className="line-clamp-2 text-xs text-subtle" title={t.style_tags}>
-            <span className="font-medium text-muted">Style</span> · {t.style_tags}
+            <span className="font-medium text-muted">{m.catalogue.style}</span> · {t.style_tags}
           </p>
         )}
 
@@ -93,8 +98,8 @@ export function TrackCard({
           <details className="group/lyrics">
             <summary className="flex w-fit cursor-pointer select-none list-none items-center gap-1 text-sm font-medium text-accent-fg [&::-webkit-details-marker]:hidden">
               <span className="transition group-open/lyrics:rotate-90">›</span>
-              <span className="group-open/lyrics:hidden">Show lyrics</span>
-              <span className="hidden group-open/lyrics:inline">Hide lyrics</span>
+              <span className="group-open/lyrics:hidden">{m.common.showLyrics}</span>
+              <span className="hidden group-open/lyrics:inline">{m.common.hideLyrics}</span>
             </summary>
             <Lyrics text={t.lyrics} />
           </details>
@@ -105,17 +110,17 @@ export function TrackCard({
           <div className="flex flex-wrap items-center gap-2">
             {canRemix && (
               <Link href={`/generate?remix=${t.id}`} className={btnSecondary}>
-                <RemixIcon /> Remix
+                <RemixIcon /> {m.catalogue.remix}
               </Link>
             )}
             <a href={`/api/media/${t.id}?download=1`} className={btnSecondary}>
               <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14" />
               </svg>
-              Download
+              {m.common.download}
             </a>
             {isOwner && <ShareButton trackId={t.id} initialUrl={shareUrl} />}
-            {canDelete && <DeleteTrackButton trackId={t.id} title={t.title ?? "Untitled"} />}
+            {canDelete && <DeleteTrackButton trackId={t.id} title={t.title ?? m.common.untitled} />}
             {isOwner && <PrivateToggle trackId={t.id} initial={t.is_private === 1} />}
             {isOwner && <RemixToggle trackId={t.id} initial={t.allow_remix === 1} />}
           </div>

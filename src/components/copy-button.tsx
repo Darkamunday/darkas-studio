@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useI18n } from "@/lib/i18n/client";
 
 async function copyText(text: string) {
   // The Clipboard API only exists on https/localhost; fall back for plain-http LAN access.
@@ -17,7 +18,8 @@ async function copyText(text: string) {
   if (!ok) throw new Error("copy failed");
 }
 
-export function CopyButton({ text, label = "Copy", className = "" }: { text: string; label?: string; className?: string }) {
+export function CopyButton({ text, label, className = "" }: { text: string; label?: string; className?: string }) {
+  const { m } = useI18n();
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
 
   const onClick = async () => {
@@ -32,7 +34,7 @@ export function CopyButton({ text, label = "Copy", className = "" }: { text: str
 
   return (
     <button type="button" onClick={onClick} title={text} className={className}>
-      {state === "copied" ? "Copied!" : state === "failed" ? "Couldn't copy" : label}
+      {state === "copied" ? m.common.copied : state === "failed" ? m.common.copyFailed : (label ?? m.common.copy)}
     </button>
   );
 }

@@ -1,14 +1,18 @@
 import type { Metadata } from "next";
 import { AuthForm } from "../auth-form";
 import { login } from "../actions";
+import { getI18n } from "@/lib/i18n/server";
 
-export const metadata: Metadata = { title: "Log in" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getI18n()).m.meta.login };
+}
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const { m } = await getI18n();
   return (
     <>
-      <h1 className="text-3xl font-semibold">Welcome back</h1>
-      <p className="mb-8 mt-2 text-muted">The jukebox missed you.</p>
+      <h1 className="text-3xl font-semibold">{m.auth.loginHeading}</h1>
+      <p className="mb-8 mt-2 text-muted">{m.auth.loginBlurb}</p>
       <AuthForm mode="login" action={login} />
     </>
   );

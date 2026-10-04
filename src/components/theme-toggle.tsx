@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useI18n } from "@/lib/i18n/client";
 
 export type Theme = "dark" | "light";
 
@@ -8,6 +9,8 @@ export type Theme = "dark" | "light";
 export function ThemeToggle({ initial }: { initial: Theme }) {
   const [theme, setTheme] = useState<Theme>(initial);
   const next = theme === "dark" ? "light" : "dark";
+  const { m } = useI18n();
+  const label = next === "dark" ? m.nav.toDark : m.nav.toLight;
 
   const toggle = () => {
     document.documentElement.classList.toggle("light", next === "light");
@@ -19,8 +22,8 @@ export function ThemeToggle({ initial }: { initial: Theme }) {
     <button
       type="button"
       onClick={toggle}
-      aria-label={`Switch to ${next} mode`}
-      title={`Switch to ${next} mode`}
+      aria-label={label}
+      title={label}
       className="grid h-9 w-9 place-items-center rounded-xl border border-line bg-surface text-muted transition hover:border-line-strong hover:text-fg"
     >
       {theme === "dark" ? (

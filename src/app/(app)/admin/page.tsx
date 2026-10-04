@@ -6,23 +6,19 @@ import { appUrl } from "@/lib/url";
 import { CopyButton } from "@/components/copy-button";
 import { recentGenerations, usageByUser, usageTotals } from "@/lib/usage";
 import { createInvite, revokeInvite, setUserAdmin, setUserDisabled } from "./actions";
+import { getI18n } from "@/lib/i18n/server";
+import { LOCALE_INFO } from "@/lib/i18n/config";
+import { fmt, lookup } from "@/lib/i18n/format";
 
-export const metadata: Metadata = { title: "Admin" };
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getI18n()).m.meta.admin };
+}
 
 // sunoapi.org charged 12 credits per generation (two takes) when this was written.
 const CREDITS_PER_GENERATION = Number(process.env.SUNO_CREDITS_PER_GENERATION) || 12;
 
 type InviteRow = { code: string; used_by_name: string | null; used_at: number | null; created_at: number };
 
-const dateFmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "Europe/London" });
-const dateTimeFmt = new Intl.DateTimeFormat("en-GB", {
-  day: "numeric",
-  month: "short",
-  hour: "2-digit",
-  minute: "2-digit",
-  timeZone: "Europe/London",
-});
-const fmtDate = (s: number | null) => (s ? dateFmt.format(new Date(s * 1000)) : "—");
 
 async function fetchCredits(): Promise<number | null> {
   try {
@@ -36,6 +32,18 @@ async function fetchCredits(): Promise<number | null> {
 export default async function AdminPage() {
   const me = await requireAdmin();
   const base = await appUrl();
+  const { locale, m } = await getI18n();
+  const a = m.admin;
+  const tag = LOCALE_INFO[locale].tag;
+  const dateFmt = new Intl.DateTimeFormat(tag, { day: "numeric", month: "short", timeZone: "Europe/London" });
+  const dateTimeFmt = new Intl.DateTimeFormat(tag, {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/London",
+  });
+  const fmtDate = (s: number | null) => (s ? dateFmt.format(new Date(s * 1000)) : "—");
 
   const [credits, users, totals, recent] = [await fetchCredits(), usageByUser(), usageTotals(), recentGenerations()];
   const invites = db
@@ -49,41 +57,41 @@ export default async function AdminPage() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-4xl font-semibold sm:text-5xl">Admin</h1>
-        <p className="mt-3 text-muted">Who&apos;s making what, and how much fuel is left in the tank.</p>
+        <h1 className="text-4xl font-semibold sm:text-5xl">{m.nav.admin}</h1>
+        <p className="mt-3 text-muted">{a.blurb}</p>
       </div>
 
       {/* ---- headline numbers ---- */}
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat
-          label="Suno credits"
-          value={credits === null ? "?" : credits.toLocaleString("en-GB")}
+          label={a.credits}
+          value={credits === null ? "?" : credits.toLocaleString(tag)}
           sub={
             credits === null
-              ? "Couldn't reach Suno"
-              : `≈ ${Math.floor(credits / CREDITS_PER_GENERATION)} generations left`
+              ? a.creditsUnreachable
+              : fmt(a.generationsLeft, { n: Math.floor(credits / CREDITS_PER_GENERATION).toLocaleString(tag) })
           }
           accent
         />
-        <Stat label="Generations" value={totals.total} sub={`${totals.completed} done · ${totals.failed} failed`} />
-        <Stat label="This week" value={totals.last_7d} sub="last 7 days" />
-        <Stat label="Tracks" value={totals.tracks} sub="in the catalogue" />
+        <Stat label={a.generations} value={totals.total} sub={fmt(a.doneFailed, { done: totals.completed, failed: totals.failed })} />
+        <Stat label={a.thisWeek} value={totals.last_7d} sub={a.last7} />
+        <Stat label={a.tracks} value={totals.tracks} sub={a.inCatalogue} />
       </section>
 
       {/* ---- per-user usage ---- */}
       <section className="rounded-3xl border border-line bg-surface shadow-card p-6">
-        <h2 className="mb-4 text-lg font-semibold">Usage by person</h2>
+        <h2 className="mb-4 text-lg font-semibold">{a.usage}</h2>
         <div className="-mx-6 overflow-x-auto px-6">
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead className="whitespace-nowrap text-xs uppercase tracking-wide text-subtle">
               <tr>
-                <th className="py-2 pr-4 font-medium">User</th>
-                <th className="py-2 pr-4 text-right font-medium">Total</th>
-                <th className="py-2 pr-4 text-right font-medium">Done</th>
-                <th className="py-2 pr-4 text-right font-medium">Failed</th>
-                <th className="py-2 pr-4 text-right font-medium">7 days</th>
-                <th className="py-2 pr-4 text-right font-medium">≈ Credits</th>
-                <th className="py-2 pr-4 font-medium">Last made</th>
+                <th className="py-2 pr-4 font-medium">{a.colUser}</th>
+                <th className="py-2 pr-4 text-right font-medium">{a.colTotal}</th>
+                <th className="py-2 pr-4 text-right font-medium">{a.colDone}</th>
+                <th className="py-2 pr-4 text-right font-medium">{a.colFailed}</th>
+                <th className="py-2 pr-4 text-right font-medium">{a.col7}</th>
+                <th className="py-2 pr-4 text-right font-medium">{a.colCredits}</th>
+                <th className="py-2 pr-4 font-medium">{a.colLast}</th>
                 <th className="py-2 font-medium" />
               </tr>
             </thead>
@@ -95,11 +103,11 @@ export default async function AdminPage() {
                     <td className="py-2.5 pr-4">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="whitespace-nowrap font-medium">{u.username}</span>
-                        {u.is_admin ? <Badge tone="violet">admin</Badge> : null}
-                        {u.disabled ? <Badge tone="rose">disabled</Badge> : null}
-                        {u.in_progress ? <Badge tone="pink">{u.in_progress} cooking</Badge> : null}
+                        {u.is_admin ? <Badge tone="violet">{a.badgeAdmin}</Badge> : null}
+                        {u.disabled ? <Badge tone="rose">{a.badgeDisabled}</Badge> : null}
+                        {u.in_progress ? <Badge tone="pink">{fmt(a.cooking, { n: u.in_progress })}</Badge> : null}
                       </div>
-                      <div className="whitespace-nowrap text-xs text-subtle">joined {fmtDate(u.created_at)}</div>
+                      <div className="whitespace-nowrap text-xs text-subtle">{fmt(a.joined, { date: fmtDate(u.created_at) })}</div>
                     </td>
                     <td className="py-2.5 pr-4 text-right tabular-nums">{u.total}</td>
                     <td className="py-2.5 pr-4 text-right tabular-nums">{u.completed}</td>
@@ -110,18 +118,18 @@ export default async function AdminPage() {
                     <td className="py-2.5 pr-4 whitespace-nowrap">{fmtDate(u.last_generated_at)}</td>
                     <td className="py-2.5 text-right">
                       {self ? (
-                        <span className="text-xs text-subtle">you</span>
+                        <span className="text-xs text-subtle">{a.you}</span>
                       ) : (
                         <div className="flex justify-end gap-2">
                           <form action={setUserAdmin}>
                             <input type="hidden" name="userId" value={u.id} />
                             <input type="hidden" name="admin" value={u.is_admin ? "0" : "1"} />
-                            <SmallButton>{u.is_admin ? "Remove admin" : "Make admin"}</SmallButton>
+                            <SmallButton>{u.is_admin ? a.removeAdmin : a.makeAdmin}</SmallButton>
                           </form>
                           <form action={setUserDisabled}>
                             <input type="hidden" name="userId" value={u.id} />
                             <input type="hidden" name="disabled" value={u.disabled ? "0" : "1"} />
-                            <SmallButton danger={!u.disabled}>{u.disabled ? "Enable" : "Disable"}</SmallButton>
+                            <SmallButton danger={!u.disabled}>{u.disabled ? a.enable : a.disable}</SmallButton>
                           </form>
                         </div>
                       )}
@@ -138,9 +146,9 @@ export default async function AdminPage() {
         {/* ---- recent activity ---- */}
         {/* min-w-0: grid items default to their content's min width, so long truncated titles would widen the column. */}
         <section className="min-w-0 rounded-3xl border border-line bg-surface shadow-card p-6">
-          <h2 className="mb-4 text-lg font-semibold">Recent generations</h2>
+          <h2 className="mb-4 text-lg font-semibold">{a.recent}</h2>
           {recent.length === 0 ? (
-            <p className="text-sm text-muted">Nothing yet — the studio&apos;s quiet.</p>
+            <p className="text-sm text-muted">{a.quiet}</p>
           ) : (
             <ul className="divide-y divide-line text-sm">
               {recent.map((g) => (
@@ -151,9 +159,9 @@ export default async function AdminPage() {
                       {g.summary ?? "—"}
                     </p>
                     <p className="text-xs text-subtle">
-                      {g.username} · {g.mode} · {g.model} · {dateTimeFmt.format(new Date(g.created_at * 1000))}
+                      {g.username} · {g.mode === "remix" ? "remix" : m.generate[g.mode]} · {g.model} · {dateTimeFmt.format(new Date(g.created_at * 1000))}
                     </p>
-                    {g.error && <p className="text-xs text-danger">{g.error}</p>}
+                    {g.error && <p className="text-xs text-danger">{lookup(m.generationErrors, g.error)}</p>}
                   </div>
                 </li>
               ))}
@@ -164,15 +172,15 @@ export default async function AdminPage() {
         {/* ---- invites ---- */}
         <section className="min-w-0 rounded-3xl border border-line bg-surface shadow-card p-6">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Invite codes</h2>
+            <h2 className="text-lg font-semibold">{a.invites}</h2>
             <form action={createInvite}>
               <button className="rounded-xl bg-brand px-3 py-1.5 text-sm font-medium text-white shadow-glow transition hover:brightness-110">
-                New invite code
+                {a.newInvite}
               </button>
             </form>
           </div>
           {invites.length === 0 ? (
-            <p className="text-sm text-muted">No invites yet. Make one and send it to a friend.</p>
+            <p className="text-sm text-muted">{a.noInvites}</p>
           ) : (
             <ul className="divide-y divide-line text-sm">
               {invites.map((inv) => (
@@ -181,21 +189,19 @@ export default async function AdminPage() {
                     {inv.code}
                   </code>
                   {inv.used_by_name ? (
-                    <span className="text-subtle">
-                      used by {inv.used_by_name} · {fmtDate(inv.used_at)}
-                    </span>
+                    <span className="text-subtle">{fmt(a.usedBy, { name: inv.used_by_name, date: fmtDate(inv.used_at) })}</span>
                   ) : (
                     <>
-                      <span className="text-success">unused</span>
+                      <span className="text-success">{a.unused}</span>
                       <div className="ml-auto flex items-center gap-1">
                         <CopyButton
                           text={`${base}/signup?code=${inv.code}`}
-                          label="Copy link"
+                          label={a.copyLink}
                           className="rounded-lg bg-pink/12 px-2.5 py-1 text-xs font-medium text-accent-fg transition hover:bg-pink/20"
                         />
                         <form action={revokeInvite}>
                           <input type="hidden" name="code" value={inv.code} />
-                          <button className="rounded-lg px-2 py-1 text-xs text-muted transition hover:text-danger">Revoke</button>
+                          <button className="rounded-lg px-2 py-1 text-xs text-muted transition hover:text-danger">{a.revoke}</button>
                         </form>
                       </div>
                     </>
@@ -204,9 +210,7 @@ export default async function AdminPage() {
               ))}
             </ul>
           )}
-          <p className="mt-4 text-xs text-subtle">
-            Send a friend the link — it opens sign-up with the code filled in. Each code works once.
-          </p>
+          <p className="mt-4 text-xs text-subtle">{a.inviteNote}</p>
         </section>
       </div>
     </div>
