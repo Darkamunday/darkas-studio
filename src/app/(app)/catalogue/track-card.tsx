@@ -17,6 +17,7 @@ export async function TrackCard({
   isOwner,
   shareUrl,
   canRemix,
+  isAdmin,
 }: {
   track: CatalogueTrack;
   canDelete: boolean;
@@ -25,6 +26,8 @@ export async function TrackCard({
   shareUrl: string | null;
   /** Remixing allowed for this viewer (creator switched it on, or it's their own song). */
   canRemix: boolean;
+  /** Admins get a link to the timestamped-lyrics tool. */
+  isAdmin: boolean;
 }) {
   const { locale, m } = await getI18n();
   const dateFmt = new Intl.DateTimeFormat(LOCALE_INFO[locale].tag, { day: "numeric", month: "short", year: "numeric", timeZone: "Europe/London" });
@@ -120,6 +123,15 @@ export async function TrackCard({
               </svg>
               {m.common.download}
             </a>
+            {isAdmin && t.lyrics && !t.instrumental && (
+              <Link href={`/admin/lyrics/${t.id}`} className={btnSecondary}>
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 7v5l3 2" />
+                </svg>
+                {m.timed.open}
+              </Link>
+            )}
             {isOwner && <ShareButton trackId={t.id} initialUrl={shareUrl} />}
             {canDelete && (
               <DeleteTrackButton trackId={t.id} title={t.title ?? m.common.untitled} ownerName={t.username} isOwner={isOwner} binDays={BIN_DAYS} />

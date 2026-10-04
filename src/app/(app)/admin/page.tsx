@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { getCredits } from "@/lib/suno";
@@ -6,6 +7,7 @@ import { appUrl } from "@/lib/url";
 import { CopyButton } from "@/components/copy-button";
 import { recentGenerations, usageByUser, usageTotals } from "@/lib/usage";
 import { BIN_DAYS, listAdminRemoved, purgeExpiredBin } from "@/lib/bin";
+import { timedLyricsCandidates } from "@/lib/timed-lyrics";
 import { BinRow, DaysLeft } from "../catalogue/deleted/bin-row";
 import { createInvite, revokeInvite, setUserAdmin, setUserDisabled } from "./actions";
 import { getI18n } from "@/lib/i18n/server";
@@ -50,6 +52,7 @@ export default async function AdminPage() {
   await purgeExpiredBin();
   const [credits, users, totals, recent] = [await fetchCredits(), usageByUser(), usageTotals(), recentGenerations()];
   const removed = listAdminRemoved();
+  const timedCandidates = timedLyricsCandidates(me.id);
   const invites = db
     .prepare(
       `SELECT i.code, u.username AS used_by_name, i.used_at, i.created_at
@@ -217,6 +220,30 @@ export default async function AdminPage() {
           <p className="mt-4 text-xs text-subtle">{a.inviteNote}</p>
         </section>
       </div>
+
+      {/* ---- timestamped lyrics ---- */}
+      <section className="rounded-3xl border border-line bg-surface shadow-card p-6">
+        <h2 className="text-lg font-semibold">{m.timed.heading}</h2>
+        <p className="mt-1 text-sm text-muted">{m.timed.adminBlurb}</p>
+        {timedCandidates.length === 0 ? (
+          <p className="mt-4 text-sm text-muted">{m.timed.noTracks}</p>
+        ) : (
+          <ul className="mt-3 grid gap-x-6 sm:grid-cols-2">
+            {timedCandidates.map((t) => (
+              <li key={t.id} className="border-b border-line">
+                <Link href={`/admin/lyrics/${t.id}`} className="flex items-center gap-2 py-2.5 text-sm transition hover:text-accent-fg">
+                  <span className="min-w-0 flex-1 truncate">
+                    <span className="font-medium">{t.title ?? m.common.untitled}</span>{" "}
+                    <span className="text-subtle">· {t.username} · {fmtDate(t.created_at)}</span>
+                  </span>
+                  {t.has_timings ? <Badge tone="violet">{m.timed.saved}</Badge> : null}
+                  <span aria-hidden className="text-subtle">→</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {/* ---- songs admins removed (not in their owners' bins) ---- */}
       {removed.length > 0 && (

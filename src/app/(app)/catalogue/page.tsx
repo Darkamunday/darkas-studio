@@ -99,6 +99,7 @@ export default async function CataloguePage({ searchParams }: PageProps<"/catalo
               isOwner={t.owner_id === user.id}
               shareUrl={t.share_token ? `${base}/s/${t.share_token}` : null}
               canRemix={canRemix(user, t)}
+              isAdmin={user.is_admin === 1}
             />
           ))}
         </section>

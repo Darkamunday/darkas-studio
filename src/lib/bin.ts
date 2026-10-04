@@ -210,6 +210,7 @@ export async function purgeExpiredBin() {
     .all() as { id: number; audio_path: string | null; image_path: string | null }[];
   for (const t of expired) {
     db.prepare("DELETE FROM deleted_tracks WHERE id = ?").run(t.id);
+    db.prepare("DELETE FROM timed_lyrics WHERE track_id = ?").run(t.id);
     // Files go after the row, so a failure here only leaves an orphan file, never a broken entry.
     for (const p of [t.audio_path, t.image_path]) if (p) await removeMediaFile(p);
   }

@@ -165,6 +165,24 @@ export async function getRecord(taskId: string): Promise<SunoRecord | null> {
   };
 }
 
+export type AlignedWord = { word: string; startS: number; endS: number; success: boolean };
+
+/**
+ * Word-by-word timings for one take's lyrics. Costs credits (0.5 per call when this was written),
+ * so callers keep the result. Words carry the lyrics' own line breaks and [Section] tags.
+ */
+export async function getTimestampedLyrics(taskId: string, audioId: string): Promise<AlignedWord[]> {
+  if (MOCK) {
+    const words = ["[Verse]\nMock ", "lyrics ", "for ", "testing\n", "[Chorus]\nLa ", "la ", "la\n"];
+    return words.map((word, i) => ({ word, startS: 2 + i * 1.5, endS: 3 + i * 1.5, success: true }));
+  }
+  const data = await call<{ alignedWords?: AlignedWord[] | null } | null>("/generate/get-timestamped-lyrics", {
+    method: "POST",
+    body: JSON.stringify({ taskId, audioId }),
+  });
+  return (data?.alignedWords ?? []).map(({ word, startS, endS, success }) => ({ word, startS, endS, success }));
+}
+
 export async function getCredits(): Promise<number> {
   if (MOCK) return 999;
   return call<number>("/generate/credit");

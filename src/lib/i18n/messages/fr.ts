@@ -10,6 +10,7 @@ export const fr: Messages = {
     signup: "Inscription",
     songNotFound: "Chanson introuvable",
     bin: "Récemment supprimés",
+    timed: "Paroles synchronisées",
   },
 
   common: {
@@ -316,6 +317,27 @@ export const fr: Messages = {
       gone: "Le studio n'a plus cette chanson, elle ne peut pas être récupérée.",
       studio: "Impossible de joindre le studio — réessaie dans un instant.",
     },
+  },
+
+  timed: {
+    heading: "Paroles synchronisées",
+    adminBlurb: "Le minutage ligne par ligne des paroles — pour du karaoké, des clips de paroles ou des sous-titres. Ça coûte environ un demi-crédit par version ; ensuite c'est enregistré.",
+    open: "Paroles synchro",
+    saved: "enregistré",
+    noTracks: "Pas encore de chansons avec des paroles.",
+    notFetched: "Pas encore de minutage. L'obtenir coûte environ un demi-crédit ; ensuite il est enregistré ici.",
+    fetch: "Obtenir les paroles synchronisées (½ crédit)",
+    fetching: "Récupération du minutage…",
+    refetch: "Récupérer à nouveau (½ crédit)",
+    summary: "{lines} lignes · {words} mots · enregistré le {date}",
+    downloadLrc: "Télécharger le .lrc",
+    copyLrc: "Copier le LRC",
+    downloadJson: "Télécharger le JSON (minutage des mots)",
+    follow: "Lance la lecture et la ligne en cours s'allume. Clique sur une ligne pour y aller.",
+    back: "← Retour à l'admin",
+    none: "Le studio n'a renvoyé aucun minutage pour celle-ci.",
+    instrumental: "Cette version est instrumentale, il n'y a donc pas de paroles à synchroniser.",
+    notFound: "Cette chanson n'est pas disponible.",
   },
 
   share: {

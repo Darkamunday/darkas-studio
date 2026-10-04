@@ -4,6 +4,10 @@ import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
+import { getI18n } from "@/lib/i18n/server";
+import { SunoError } from "@/lib/suno";
+import { fetchTimedLyrics, getTimingTrack } from "@/lib/timed-lyrics";
+import { canViewTrack } from "@/lib/tracks";
 
 // Unambiguous alphabet (no 0/O, 1/I/L).
 const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
@@ -49,4 +53,23 @@ export async function setUserAdmin(formData: FormData) {
   if (id === null) return;
   db.prepare("UPDATE users SET is_admin = ? WHERE id = ?").run(formData.get("admin") === "1" ? 1 : 0, id);
   revalidatePath("/admin");
+}
+
+export async function fetchTimedLyricsAction(trackId: number): Promise<{ ok: boolean; error?: string }> {
+  const admin = await requireAdmin();
+  const { m } = await getI18n();
+  const track = getTimingTrack(Number(trackId));
+  // Private songs stay their owner's only, admins included.
+  if (!track || !canViewTrack(admin.id, track)) return { ok: false, error: m.timed.notFound };
+  if (track.instrumental) return { ok: false, error: m.timed.instrumental };
+  try {
+    if (!(await fetchTimedLyrics(track, admin.id))) return { ok: false, error: m.timed.none };
+  } catch (err) {
+    if (err instanceof SunoError) return { ok: false, error: m.studioErrors[err.reason] };
+    console.error("[timed-lyrics] unexpected error", err);
+    return { ok: false, error: m.generate.errors.unexpected };
+  }
+  revalidatePath(`/admin/lyrics/${track.id}`);
+  revalidatePath("/admin");
+  return { ok: true };
 }

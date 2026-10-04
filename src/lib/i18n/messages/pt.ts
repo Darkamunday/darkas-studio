@@ -11,6 +11,7 @@ export const pt: Messages = {
     signup: "Cadastrar",
     songNotFound: "Música não encontrada",
     bin: "Excluídas recentemente",
+    timed: "Letras sincronizadas",
   },
 
   common: {
@@ -317,6 +318,27 @@ export const pt: Messages = {
       gone: "O estúdio não tem mais esta música, então não dá para recuperá-la.",
       studio: "Não deu para falar com o estúdio — tente de novo daqui a pouco.",
     },
+  },
+
+  timed: {
+    heading: "Letras sincronizadas",
+    adminBlurb: "Os tempos linha por linha da letra — para karaokê, lyric videos ou legendas. Buscar custa cerca de meio crédito por versão; depois fica salvo.",
+    open: "Letra sincronizada",
+    saved: "salva",
+    noTracks: "Ainda não há músicas com letra.",
+    notFetched: "Ainda sem tempos. Buscar usa cerca de meio crédito; depois ficam salvos aqui.",
+    fetch: "Buscar letra sincronizada (½ crédito)",
+    fetching: "Buscando os tempos…",
+    refetch: "Buscar de novo (½ crédito)",
+    summary: "{lines} linhas · {words} palavras · salva em {date}",
+    downloadLrc: "Baixar .lrc",
+    copyLrc: "Copiar LRC",
+    downloadJson: "Baixar JSON (tempos por palavra)",
+    follow: "Dê o play e a linha atual se acende. Clique em qualquer linha para pular até ela.",
+    back: "← Voltar ao admin",
+    none: "O estúdio não retornou tempos para esta.",
+    instrumental: "Esta versão é instrumental, então não há letra para sincronizar.",
+    notFound: "Essa música não está disponível.",
   },
 
   share: {

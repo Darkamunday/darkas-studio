@@ -11,6 +11,7 @@ export const ms: Messages = {
     signup: "Daftar",
     songNotFound: "Lagu tidak dijumpai",
     bin: "Baru dipadam",
+    timed: "Lirik bercap masa",
   },
 
   common: {
@@ -317,6 +318,27 @@ export const ms: Messages = {
       gone: "Studio tiada lagi lagu ini, jadi ia tidak boleh dipulihkan.",
       studio: "Tidak dapat menghubungi studio — cuba lagi sebentar nanti.",
     },
+  },
+
+  timed: {
+    heading: "Lirik bercap masa",
+    adminBlurb: "Masa setiap baris lirik lagu — untuk karaoke, video lirik atau sari kata. Mendapatkannya menggunakan kira-kira setengah kredit setiap versi; selepas itu ia disimpan.",
+    open: "Lirik bermasa",
+    saved: "disimpan",
+    noTracks: "Belum ada lagu berlirik.",
+    notFetched: "Belum ada masa lirik. Mendapatkannya menggunakan kira-kira setengah kredit; selepas itu ia disimpan di sini.",
+    fetch: "Dapatkan lirik bercap masa (½ kredit)",
+    fetching: "Mendapatkan masa lirik…",
+    refetch: "Dapatkan semula (½ kredit)",
+    summary: "{lines} baris · {words} perkataan · disimpan {date}",
+    downloadLrc: "Muat turun .lrc",
+    copyLrc: "Salin LRC",
+    downloadJson: "Muat turun JSON (masa setiap perkataan)",
+    follow: "Tekan main dan baris semasa akan menyala. Klik mana-mana baris untuk melompat ke situ.",
+    back: "← Kembali ke admin",
+    none: "Studio tidak memulangkan sebarang masa untuk lagu ini.",
+    instrumental: "Versi ini instrumental, jadi tiada lirik untuk diberi masa.",
+    notFound: "Lagu itu tidak tersedia.",
   },
 
   share: {

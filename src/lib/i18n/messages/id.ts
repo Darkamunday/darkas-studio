@@ -10,6 +10,7 @@ export const id: Messages = {
     signup: "Daftar",
     songNotFound: "Lagu tidak ditemukan",
     bin: "Baru dihapus",
+    timed: "Lirik bertimestamp",
   },
 
   common: {
@@ -316,6 +317,27 @@ export const id: Messages = {
       gone: "Studio sudah tidak punya lagu ini, jadi tidak bisa dipulihkan.",
       studio: "Tidak bisa menghubungi studio — coba lagi sebentar lagi.",
     },
+  },
+
+  timed: {
+    heading: "Lirik bertimestamp",
+    adminBlurb: "Waktu per baris untuk lirik lagu — untuk karaoke, video lirik, atau subtitle. Mengambilnya memakan sekitar setengah kredit per versi; setelah itu tersimpan.",
+    open: "Lirik berwaktu",
+    saved: "tersimpan",
+    noTracks: "Belum ada lagu dengan lirik.",
+    notFetched: "Belum ada waktu lirik. Mengambilnya memakan sekitar setengah kredit; setelah itu tersimpan di sini.",
+    fetch: "Ambil lirik bertimestamp (½ kredit)",
+    fetching: "Mengambil waktu lirik…",
+    refetch: "Ambil lagi (½ kredit)",
+    summary: "{lines} baris · {words} kata · disimpan {date}",
+    downloadLrc: "Unduh .lrc",
+    copyLrc: "Salin LRC",
+    downloadJson: "Unduh JSON (waktu per kata)",
+    follow: "Tekan putar dan baris yang sedang dinyanyikan akan menyala. Klik baris mana saja untuk melompat ke sana.",
+    back: "← Kembali ke admin",
+    none: "Studio tidak mengembalikan waktu lirik untuk lagu ini.",
+    instrumental: "Versi ini instrumental, jadi tidak ada lirik untuk diberi waktu.",
+    notFound: "Lagu itu tidak tersedia.",
   },
 
   share: {

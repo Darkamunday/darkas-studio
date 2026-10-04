@@ -11,6 +11,7 @@ export const en = {
     signup: "Sign up",
     songNotFound: "Song not found",
     bin: "Recently deleted",
+    timed: "Timestamped lyrics",
   },
 
   common: {
@@ -319,6 +320,27 @@ export const en = {
       gone: "The studio doesn't have this song any more, so it can't be recovered.",
       studio: "Couldn't reach the studio — try again in a moment.",
     },
+  },
+
+  timed: {
+    heading: "Timestamped lyrics",
+    adminBlurb: "Line-by-line timings for a song's lyrics — for karaoke, lyric videos or subtitles. Getting them costs about half a credit per take; after that they're saved.",
+    open: "Timed lyrics",
+    saved: "saved",
+    noTracks: "No songs with lyrics yet.",
+    notFetched: "No timings yet. Getting them uses about half a credit; after that they're saved here.",
+    fetch: "Get timestamped lyrics (½ credit)",
+    fetching: "Fetching timings…",
+    refetch: "Fetch again (½ credit)",
+    summary: "{lines} lines · {words} words · saved {date}",
+    downloadLrc: "Download .lrc",
+    copyLrc: "Copy LRC",
+    downloadJson: "Download JSON (word timings)",
+    follow: "Press play and the current line lights up. Click any line to jump there.",
+    back: "← Back to admin",
+    none: "The studio returned no timings for this one.",
+    instrumental: "This take is instrumental, so there are no lyrics to time.",
+    notFound: "That song isn't available.",
   },
 
   share: {

@@ -143,6 +143,17 @@ const MIGRATIONS: string[] = [
   UPDATE generations SET lost_takes = 1
    WHERE status = 'complete' AND (SELECT COUNT(*) FROM tracks t WHERE t.generation_id = generations.id) < 2;
   `,
+  // 7: word-level lyric timings from the provider. Fetching costs credits, so each take's result
+  // is kept. No foreign key: the row should survive the track's trip through the bin (bin.ts
+  // deletes it when the track is purged).
+  `
+  CREATE TABLE timed_lyrics (
+    track_id   INTEGER PRIMARY KEY,
+    words      TEXT NOT NULL,
+    fetched_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    fetched_by INTEGER REFERENCES users(id) ON DELETE SET NULL
+  );
+  `,
 ];
 
 function open(): DatabaseSync {
