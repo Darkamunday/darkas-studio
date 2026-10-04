@@ -10,6 +10,7 @@ export const pt: Messages = {
     login: "Entrar",
     signup: "Cadastrar",
     songNotFound: "Música não encontrada",
+    bin: "Excluídas recentemente",
   },
 
   common: {
@@ -225,7 +226,8 @@ export const pt: Messages = {
     style: "Estilo",
     remix: "Remixar",
     delete: "Excluir",
-    deleteConfirm: "Excluir {title} para todo mundo? Não dá para desfazer.",
+    deleteConfirm: "Mover {title} para Excluídas recentemente? Você pode restaurá-la por {days} dias.",
+    deleteConfirmAdmin: "Remover {title} do catálogo de {owner}? Ela não vai para a lixeira dessa pessoa — um admin pode restaurá-la pela página Admin por {days} dias.",
     deleting: "Excluindo…",
     yesDelete: "Sim, excluir",
     keepIt: "Manter",
@@ -287,6 +289,34 @@ export const pt: Messages = {
     copyLink: "Copiar link",
     revoke: "Revogar",
     inviteNote: "Mande o link para um amigo — ele abre o cadastro com o código preenchido. Cada código funciona uma vez.",
+  },
+
+  bin: {
+    heading: "Excluídas recentemente",
+    blurb: "As músicas que você exclui ficam aqui por {days} dias e depois somem de vez.",
+    link: "Excluídas recentemente",
+    empty: "Nada por aqui. As músicas que você excluir aparecem aqui por {days} dias.",
+    deletedOn: "Excluída em {date}",
+    daysLeft: { one: "falta {n} dia", other: "faltam {n} dias" },
+    lastDay: "Último dia",
+    restore: "Restaurar",
+    restoring: "Restaurando…",
+    back: "← Voltar ao catálogo",
+    lostHeading: "Excluídas antes da lixeira existir",
+    lostBlurb: "Estas foram excluídas antes, então não temos mais os arquivos. Podemos tentar buscá-las de volta no estúdio — só funciona enquanto ele ainda as guarda.",
+    lostTakes: { one: "{n} versão", other: "{n} versões" },
+    madeOn: "Criada em {date}",
+    recover: "Tentar recuperar",
+    recovering: "Buscando no estúdio…",
+    adminHeading: "Removidas por admins",
+    adminBlurb: "Músicas que um admin removeu do catálogo de outra pessoa. Elas não aparecem na lixeira de quem criou — restaure aqui em até {days} dias.",
+    adminRow: "Música de {owner} · removida por {by} · {date}",
+    errors: {
+      forbidden: "Você não pode restaurar essa.",
+      notFound: "Ela não está mais na lixeira.",
+      gone: "O estúdio não tem mais esta música, então não dá para recuperá-la.",
+      studio: "Não deu para falar com o estúdio — tente de novo daqui a pouco.",
+    },
   },
 
   share: {

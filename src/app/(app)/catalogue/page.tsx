@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { appUrl } from "@/lib/url";
 import { canRemix } from "@/lib/remix";
+import { ownBinCount, purgeExpiredBin } from "@/lib/bin";
 import { canDeleteTrack, catalogueFacets, listCatalogue, pendingGenerationsVisibleTo, refreshStalePending } from "@/lib/tracks";
 import { Equalizer } from "@/components/equalizer";
 import { btnPrimary, card } from "@/components/ui";
@@ -25,6 +26,8 @@ export default async function CataloguePage({ searchParams }: PageProps<"/catalo
   const filters = { genre: one(sp.genre), creator: one(sp.creator) };
 
   refreshStalePending();
+  void purgeExpiredBin();
+  const binCount = ownBinCount(user.id);
   const tracks = listCatalogue(user.id, filters);
   const facets = catalogueFacets(user.id);
   const pending = pendingGenerationsVisibleTo(user.id);
@@ -46,6 +49,14 @@ export default async function CataloguePage({ searchParams }: PageProps<"/catalo
                   })
                 : m.catalogue.emptyBlurb}
           </p>
+          {binCount > 0 && (
+            <Link href="/catalogue/deleted" className="mt-2 inline-flex items-center gap-1.5 text-sm text-subtle transition hover:text-fg">
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3" />
+              </svg>
+              {m.bin.link} ({binCount})
+            </Link>
+          )}
         </div>
         {(tracks.length > 0 || filtered) && <FilterBar genres={facets.genres} creators={facets.creators} current={filters} />}
       </div>

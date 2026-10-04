@@ -1,6 +1,6 @@
 import "server-only";
 import { db, transaction } from "./db";
-import { AUDIO_DIR, COVER_DIR, downloadTo, removeMediaFile } from "./storage";
+import { AUDIO_DIR, COVER_DIR, downloadTo } from "./storage";
 import { getRecord, type SunoClip, type SunoTaskStatus } from "./suno";
 
 export const MOODS = ["Chill", "Happy", "Hype", "Dreamy", "Romantic", "Melancholy", "Dark", "Epic"] as const;
@@ -33,6 +33,8 @@ export type GenerationRow = {
   remix_of_title: string | null;
   remix_of_username: string | null;
   is_private: number;
+  /** 1 = takes were deleted before the bin existed; they may still be fetchable from the provider. */
+  lost_takes: number;
 };
 
 export type TrackRow = {
@@ -190,7 +192,7 @@ const FAILURE_CODES: Partial<Record<SunoTaskStatus, string>> = {
   GENERATE_AUDIO_FAILED: "audio_failed",
 };
 
-function upsertClips(gen: GenerationRow, clips: SunoClip[]) {
+export function upsertClips(gen: GenerationRow, clips: SunoClip[]) {
   const stmt = db.prepare(
     `INSERT INTO tracks (generation_id, suno_audio_id, title, lyrics, style_tags, genre, mood, duration,
                          source_audio_url, source_stream_url, source_image_url, is_private)
@@ -236,7 +238,7 @@ const downloading = ((globalThis as unknown as { __trackDownloads?: Map<number, 
  * Both takes come from the same request, so borrow the missing details from
  * the sibling take. Keep in sync with migration 3 in db.ts.
  */
-function backfillFromSiblings(generationId: number) {
+export function backfillFromSiblings(generationId: number) {
   const sibling = (col: string) =>
     `COALESCE(${col}, (SELECT s.${col} FROM tracks s WHERE s.generation_id = tracks.generation_id AND s.id <> tracks.id AND s.${col} IS NOT NULL LIMIT 1))`;
   db.prepare(
@@ -445,28 +447,6 @@ export function pendingGenerationsVisibleTo(viewerId: number) {
 /** Authors can delete their own tracks; admins can delete anyone's. */
 export function canDeleteTrack(user: { id: number; is_admin: number }, ownerId: number) {
   return user.is_admin === 1 || user.id === ownerId;
-}
-
-export type DeleteResult = "deleted" | "not_found" | "forbidden";
-
-/**
- * Remove a track and its files. The generation row is kept so usage stats
- * (and credits spent) stay accurate even after songs are deleted.
- */
-export async function deleteTrack(user: { id: number; is_admin: number }, trackId: number): Promise<DeleteResult> {
-  const row = db
-    .prepare(
-      `SELECT t.audio_path, t.image_path, g.user_id AS owner_id
-         FROM tracks t JOIN generations g ON g.id = t.generation_id WHERE t.id = ?`,
-    )
-    .get(trackId) as { audio_path: string | null; image_path: string | null; owner_id: number } | undefined;
-  if (!row) return "not_found";
-  if (!canDeleteTrack(user, row.owner_id)) return "forbidden";
-
-  db.prepare("DELETE FROM tracks WHERE id = ?").run(trackId);
-  // Files go after the row, so a failure here only leaves an orphan file, never a broken track.
-  for (const p of [row.audio_path, row.image_path]) if (p) await removeMediaFile(p);
-  return "deleted";
 }
 
 // ---- privacy -----------------------------------------------------------------

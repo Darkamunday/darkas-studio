@@ -10,6 +10,7 @@ export const ms: Messages = {
     login: "Log masuk",
     signup: "Daftar",
     songNotFound: "Lagu tidak dijumpai",
+    bin: "Baru dipadam",
   },
 
   common: {
@@ -225,7 +226,8 @@ export const ms: Messages = {
     style: "Gaya",
     remix: "Remix",
     delete: "Padam",
-    deleteConfirm: "Padam {title} untuk semua orang? Ini tidak boleh dibatalkan.",
+    deleteConfirm: "Pindahkan {title} ke Baru dipadam? Kamu boleh memulihkannya dalam masa {days} hari.",
+    deleteConfirmAdmin: "Buang {title} daripada katalog {owner}? Ia tidak akan masuk ke tong sampahnya — admin boleh memulihkannya dari halaman Admin dalam masa {days} hari.",
     deleting: "Memadam…",
     yesDelete: "Ya, padam",
     keepIt: "Simpan",
@@ -287,6 +289,34 @@ export const ms: Messages = {
     copyLink: "Salin pautan",
     revoke: "Batalkan",
     inviteNote: "Hantar pautan kepada kawan — ia membuka pendaftaran dengan kod sudah diisi. Setiap kod hanya boleh digunakan sekali.",
+  },
+
+  bin: {
+    heading: "Baru dipadam",
+    blurb: "Lagu yang kamu padam menunggu di sini selama {days} hari, kemudian hilang terus.",
+    link: "Baru dipadam",
+    empty: "Tiada apa-apa di sini. Lagu yang kamu padam akan muncul di sini selama {days} hari.",
+    deletedOn: "Dipadam {date}",
+    daysLeft: { one: "{n} hari lagi", other: "{n} hari lagi" },
+    lastDay: "Hari terakhir",
+    restore: "Pulihkan",
+    restoring: "Memulihkan…",
+    back: "← Kembali ke katalog",
+    lostHeading: "Dipadam sebelum tong sampah wujud",
+    lostBlurb: "Lagu-lagu ini dipadam lebih awal, jadi kami tiada lagi failnya. Kami boleh cuba mendapatkannya semula daripada studio — hanya berjaya selagi studio masih menyimpannya.",
+    lostTakes: { one: "{n} versi", other: "{n} versi" },
+    madeOn: "Dicipta {date}",
+    recover: "Cuba pulihkan",
+    recovering: "Mendapatkan daripada studio…",
+    adminHeading: "Dibuang oleh admin",
+    adminBlurb: "Lagu yang dibuang admin daripada katalog orang lain. Ia tidak muncul dalam tong sampah pemiliknya — pulihkan di sini dalam masa {days} hari.",
+    adminRow: "Lagu {owner} · dibuang oleh {by} · {date}",
+    errors: {
+      forbidden: "Kamu tidak boleh memulihkan lagu itu.",
+      notFound: "Lagu itu sudah tiada dalam tong sampah.",
+      gone: "Studio tiada lagi lagu ini, jadi ia tidak boleh dipulihkan.",
+      studio: "Tidak dapat menghubungi studio — cuba lagi sebentar nanti.",
+    },
   },
 
   share: {

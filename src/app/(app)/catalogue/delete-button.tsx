@@ -6,8 +6,21 @@ import { rich } from "@/lib/i18n/format";
 import { useI18n } from "@/lib/i18n/client";
 import { deleteTrackAction } from "./actions";
 
-/** Two-step delete: first click asks, second click deletes. */
-export function DeleteTrackButton({ trackId, title }: { trackId: number; title: string }) {
+/** Two-step delete: first click asks, second click moves it to the bin. */
+export function DeleteTrackButton({
+  trackId,
+  title,
+  ownerName,
+  isOwner,
+  binDays,
+}: {
+  trackId: number;
+  title: string;
+  ownerName: string;
+  /** An admin removing someone else's song gets a different warning: it skips the owner's bin. */
+  isOwner: boolean;
+  binDays: number;
+}) {
   const { m } = useI18n();
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +37,11 @@ export function DeleteTrackButton({ trackId, title }: { trackId: number; title: 
   return (
     <div className="flex w-full animate-pop flex-wrap items-center gap-2 rounded-2xl border border-danger/40 bg-danger/10 p-3 text-sm">
       <span className="w-full">
-        {rich(m.catalogue.deleteConfirm, { title: <span className="font-semibold">“{title}”</span> })}
+        {rich(isOwner ? m.catalogue.deleteConfirm : m.catalogue.deleteConfirmAdmin, {
+          title: <span className="font-semibold">“{title}”</span>,
+          owner: <span className="font-semibold">{ownerName}</span>,
+          days: binDays,
+        })}
       </span>
       <button
         type="button"

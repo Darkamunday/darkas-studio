@@ -10,6 +10,7 @@ export const en = {
     login: "Log in",
     signup: "Sign up",
     songNotFound: "Song not found",
+    bin: "Recently deleted",
   },
 
   common: {
@@ -227,7 +228,8 @@ export const en = {
     style: "Style",
     remix: "Remix",
     delete: "Delete",
-    deleteConfirm: "Delete {title} for everyone? This can't be undone.",
+    deleteConfirm: "Move {title} to Recently deleted? You can restore it for {days} days.",
+    deleteConfirmAdmin: "Remove {title} from {owner}'s catalogue? It won't go to their bin — an admin can restore it from the Admin page for {days} days.",
     deleting: "Deleting…",
     yesDelete: "Yes, delete",
     keepIt: "Keep it",
@@ -289,6 +291,34 @@ export const en = {
     copyLink: "Copy link",
     revoke: "Revoke",
     inviteNote: "Send a friend the link — it opens sign-up with the code filled in. Each code works once.",
+  },
+
+  bin: {
+    heading: "Recently deleted",
+    blurb: "Songs you delete wait here for {days} days, then they're gone for good.",
+    link: "Recently deleted",
+    empty: "Nothing here. Songs you delete show up here for {days} days.",
+    deletedOn: "Deleted {date}",
+    daysLeft: { one: "{n} day left", other: "{n} days left" },
+    lastDay: "Last day",
+    restore: "Restore",
+    restoring: "Restoring…",
+    back: "← Back to the catalogue",
+    lostHeading: "Deleted before the bin existed",
+    lostBlurb: "These were deleted earlier, so we no longer have the files. We can try fetching them back from the studio — that only works while it still keeps them.",
+    lostTakes: { one: "{n} take", other: "{n} takes" },
+    madeOn: "Made {date}",
+    recover: "Try to recover",
+    recovering: "Fetching from the studio…",
+    adminHeading: "Removed by admins",
+    adminBlurb: "Songs an admin removed from someone else's catalogue. They don't appear in the owner's bin — restore them here within {days} days.",
+    adminRow: "{owner}'s song · removed by {by} · {date}",
+    errors: {
+      forbidden: "You can't restore that one.",
+      notFound: "That's no longer in the bin.",
+      gone: "The studio doesn't have this song any more, so it can't be recovered.",
+      studio: "Couldn't reach the studio — try again in a moment.",
+    },
   },
 
   share: {

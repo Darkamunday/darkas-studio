@@ -107,6 +107,42 @@ const MIGRATIONS: string[] = [
   ALTER TABLE generations ADD COLUMN is_private INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE tracks ADD COLUMN is_private INTEGER NOT NULL DEFAULT 0;
   `,
+  // 6: the bin. Deleting a track moves its row here (files stay on disk) so it can be restored
+  // for a while; nothing that reads `tracks` can see it. Keep the columns in step with `tracks`:
+  // a migration that adds a column there should add it here too (see bin.ts).
+  // generations.lost_takes marks songs whose takes were deleted before the bin existed — those
+  // can only be fetched back from the provider, while it still has them.
+  `
+  CREATE TABLE deleted_tracks (
+    id                INTEGER PRIMARY KEY,
+    generation_id     INTEGER NOT NULL REFERENCES generations(id),
+    suno_audio_id     TEXT NOT NULL,
+    title             TEXT,
+    lyrics            TEXT,
+    style_tags        TEXT,
+    genre             TEXT,
+    mood              TEXT,
+    duration          REAL,
+    image_path        TEXT,
+    audio_path        TEXT,
+    source_audio_url  TEXT,
+    source_stream_url TEXT,
+    source_image_url  TEXT,
+    created_at        INTEGER NOT NULL,
+    share_token       TEXT,
+    shared_at         INTEGER,
+    allow_remix       INTEGER NOT NULL DEFAULT 1,
+    is_private        INTEGER NOT NULL DEFAULT 0,
+    deleted_at        INTEGER NOT NULL,
+    deleted_by        INTEGER REFERENCES users(id) ON DELETE SET NULL
+  );
+  CREATE INDEX deleted_tracks_generation ON deleted_tracks(generation_id);
+  CREATE INDEX deleted_tracks_deleted_at ON deleted_tracks(deleted_at);
+
+  ALTER TABLE generations ADD COLUMN lost_takes INTEGER NOT NULL DEFAULT 0;
+  UPDATE generations SET lost_takes = 1
+   WHERE status = 'complete' AND (SELECT COUNT(*) FROM tracks t WHERE t.generation_id = generations.id) < 2;
+  `,
 ];
 
 function open(): DatabaseSync {

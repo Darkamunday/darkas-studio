@@ -62,6 +62,11 @@ Nothing below is in git — **back these up together**, since catalogue rows poi
   in `src/lib/db.ts` run automatically on startup.
 - `$MEDIA_DIR/audio`, `$MEDIA_DIR/covers` — downloaded MP3s and cover art.
 
+Deleting a song moves it to the `deleted_tracks` table (files kept) for 30 days, then it's purged
+with its files. People restore their own deletions from **Recently deleted** (linked from the
+catalogue); songs an admin removes skip the owner's bin and are restored from the Admin page. Songs
+deleted before the bin existed can be re-fetched from the provider while it still has them.
+
 ## Languages
 
 The interface is in English, French, Indonesian, Brazilian Portuguese and Malay. Visitors get their

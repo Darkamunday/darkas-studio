@@ -9,6 +9,7 @@ export const fr: Messages = {
     login: "Connexion",
     signup: "Inscription",
     songNotFound: "Chanson introuvable",
+    bin: "Récemment supprimés",
   },
 
   common: {
@@ -224,7 +225,8 @@ export const fr: Messages = {
     style: "Style",
     remix: "Remixer",
     delete: "Supprimer",
-    deleteConfirm: "Supprimer {title} pour tout le monde ? C'est irréversible.",
+    deleteConfirm: "Mettre {title} dans Récemment supprimés ? Tu pourras la restaurer pendant {days} jours.",
+    deleteConfirmAdmin: "Retirer {title} du catalogue de {owner} ? Elle n'ira pas dans sa corbeille — un admin peut la restaurer depuis la page Admin pendant {days} jours.",
     deleting: "Suppression…",
     yesDelete: "Oui, supprimer",
     keepIt: "La garder",
@@ -286,6 +288,34 @@ export const fr: Messages = {
     copyLink: "Copier le lien",
     revoke: "Révoquer",
     inviteNote: "Envoie le lien à un pote — il ouvre l'inscription avec le code déjà rempli. Chaque code ne sert qu'une fois.",
+  },
+
+  bin: {
+    heading: "Récemment supprimés",
+    blurb: "Les chansons que tu supprimes attendent ici {days} jours, puis disparaissent pour de bon.",
+    link: "Récemment supprimés",
+    empty: "Rien ici. Les chansons que tu supprimes apparaissent ici pendant {days} jours.",
+    deletedOn: "Supprimée le {date}",
+    daysLeft: { one: "{n} jour restant", other: "{n} jours restants" },
+    lastDay: "Dernier jour",
+    restore: "Restaurer",
+    restoring: "Restauration…",
+    back: "← Retour au catalogue",
+    lostHeading: "Supprimées avant la corbeille",
+    lostBlurb: "Celles-ci ont été supprimées plus tôt, donc on n'a plus les fichiers. On peut essayer de les récupérer auprès du studio — ça ne marche que tant qu'il les garde.",
+    lostTakes: { one: "{n} version", other: "{n} versions" },
+    madeOn: "Créée le {date}",
+    recover: "Essayer de récupérer",
+    recovering: "Récupération auprès du studio…",
+    adminHeading: "Retirées par les admins",
+    adminBlurb: "Chansons qu'un admin a retirées du catalogue de quelqu'un d'autre. Elles n'apparaissent pas dans la corbeille du créateur — restaure-les ici sous {days} jours.",
+    adminRow: "Chanson de {owner} · retirée par {by} · {date}",
+    errors: {
+      forbidden: "Tu ne peux pas restaurer celle-ci.",
+      notFound: "Elle n'est plus dans la corbeille.",
+      gone: "Le studio n'a plus cette chanson, elle ne peut pas être récupérée.",
+      studio: "Impossible de joindre le studio — réessaie dans un instant.",
+    },
   },
 
   share: {

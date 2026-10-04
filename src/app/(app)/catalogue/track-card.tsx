@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { CatalogueTrack } from "@/lib/tracks";
 import { Player } from "@/components/player";
+import { BIN_DAYS } from "@/lib/bin";
 import { LOCALE_INFO } from "@/lib/i18n/config";
 import { lookup, rich } from "@/lib/i18n/format";
 import { getI18n } from "@/lib/i18n/server";
@@ -120,7 +121,9 @@ export async function TrackCard({
               {m.common.download}
             </a>
             {isOwner && <ShareButton trackId={t.id} initialUrl={shareUrl} />}
-            {canDelete && <DeleteTrackButton trackId={t.id} title={t.title ?? m.common.untitled} />}
+            {canDelete && (
+              <DeleteTrackButton trackId={t.id} title={t.title ?? m.common.untitled} ownerName={t.username} isOwner={isOwner} binDays={BIN_DAYS} />
+            )}
             {isOwner && <PrivateToggle trackId={t.id} initial={t.is_private === 1} />}
             {isOwner && <RemixToggle trackId={t.id} initial={t.allow_remix === 1} />}
           </div>

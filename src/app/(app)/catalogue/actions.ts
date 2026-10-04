@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
-import { deleteTrack, setTrackPrivate } from "@/lib/tracks";
+import { deleteTrack, recoverLostTakes, restoreTrack } from "@/lib/bin";
+import { setTrackPrivate } from "@/lib/tracks";
 import { disableShare, enableShare } from "@/lib/sharing";
 import { setAllowRemix } from "@/lib/remix";
 import { appUrl } from "@/lib/url";
@@ -11,9 +12,10 @@ import { getI18n } from "@/lib/i18n/server";
 export async function deleteTrackAction(trackId: number): Promise<{ ok: boolean; error?: string }> {
   const user = await requireUser();
   // The permission check lives in deleteTrack, not the UI, so a hand-crafted request can't bypass it.
-  const result = await deleteTrack(user, Number(trackId));
+  const result = deleteTrack(user, Number(trackId));
   if (result === "forbidden") return { ok: false, error: (await getI18n()).m.catalogue.errors.deleteOwn };
   revalidatePath("/catalogue");
+  revalidatePath("/catalogue/deleted");
   revalidatePath("/admin");
   return { ok: true };
 }
@@ -52,4 +54,28 @@ export async function setTrackPrivateAction(trackId: number, isPrivate: boolean)
   }
   revalidatePath("/catalogue");
   return { ok: true };
+}
+
+export async function restoreTrackAction(trackId: number): Promise<{ ok: boolean; error?: string }> {
+  const user = await requireUser();
+  // Permission lives in restoreTrack: owners for their own deletions, admins for anything.
+  const result = restoreTrack(user, Number(trackId));
+  if (result !== "restored") {
+    const { m } = await getI18n();
+    return { ok: false, error: result === "forbidden" ? m.bin.errors.forbidden : m.bin.errors.notFound };
+  }
+  revalidatePath("/catalogue");
+  revalidatePath("/catalogue/deleted");
+  revalidatePath("/admin");
+  return { ok: true };
+}
+
+export async function recoverLostAction(generationId: number): Promise<{ ok: boolean; error?: string }> {
+  const user = await requireUser();
+  const result = await recoverLostTakes(user, Number(generationId));
+  revalidatePath("/catalogue");
+  revalidatePath("/catalogue/deleted");
+  if (result === "recovered") return { ok: true };
+  const e = (await getI18n()).m.bin.errors;
+  return { ok: false, error: result === "gone" ? e.gone : result === "forbidden" ? e.forbidden : result === "not_found" ? e.notFound : e.studio };
 }

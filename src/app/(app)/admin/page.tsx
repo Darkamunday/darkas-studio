@@ -5,6 +5,8 @@ import { getCredits } from "@/lib/suno";
 import { appUrl } from "@/lib/url";
 import { CopyButton } from "@/components/copy-button";
 import { recentGenerations, usageByUser, usageTotals } from "@/lib/usage";
+import { BIN_DAYS, listAdminRemoved, purgeExpiredBin } from "@/lib/bin";
+import { BinRow, DaysLeft } from "../catalogue/deleted/bin-row";
 import { createInvite, revokeInvite, setUserAdmin, setUserDisabled } from "./actions";
 import { getI18n } from "@/lib/i18n/server";
 import { LOCALE_INFO } from "@/lib/i18n/config";
@@ -45,7 +47,9 @@ export default async function AdminPage() {
   });
   const fmtDate = (s: number | null) => (s ? dateFmt.format(new Date(s * 1000)) : "—");
 
+  await purgeExpiredBin();
   const [credits, users, totals, recent] = [await fetchCredits(), usageByUser(), usageTotals(), recentGenerations()];
+  const removed = listAdminRemoved();
   const invites = db
     .prepare(
       `SELECT i.code, u.username AS used_by_name, i.used_at, i.created_at
@@ -213,6 +217,22 @@ export default async function AdminPage() {
           <p className="mt-4 text-xs text-subtle">{a.inviteNote}</p>
         </section>
       </div>
+
+      {/* ---- songs admins removed (not in their owners' bins) ---- */}
+      {removed.length > 0 && (
+        <section className="rounded-3xl border border-line bg-surface shadow-card p-6">
+          <h2 className="text-lg font-semibold">{m.bin.adminHeading}</h2>
+          <p className="mt-1 text-sm text-muted">{fmt(m.bin.adminBlurb, { days: BIN_DAYS })}</p>
+          <ul className="-mx-4 mt-2 divide-y divide-line">
+            {removed.map((t) => (
+              <BinRow key={t.id} track={t} title={t.title ?? m.common.untitled}>
+                {fmt(m.bin.adminRow, { owner: t.username, by: t.deleted_by_name ?? "?", date: fmtDate(t.deleted_at) })} ·{" "}
+                <DaysLeft days={t.days_left} />
+              </BinRow>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }
