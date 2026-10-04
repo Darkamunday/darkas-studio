@@ -101,6 +101,12 @@ const MIGRATIONS: string[] = [
   ALTER TABLE generations ADD COLUMN remix_of_title TEXT;
   ALTER TABLE generations ADD COLUMN remix_of_username TEXT;
   `,
+  // 5: private songs. Chosen per generation when it's made, copied onto each take, and
+  // switchable per track afterwards. Private tracks are only visible to their creator.
+  `
+  ALTER TABLE generations ADD COLUMN is_private INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE tracks ADD COLUMN is_private INTEGER NOT NULL DEFAULT 0;
+  `,
 ];
 
 function open(): DatabaseSync {

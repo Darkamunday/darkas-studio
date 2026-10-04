@@ -32,6 +32,7 @@ export type GenerationRow = {
   remix_of_track_id: number | null;
   remix_of_title: string | null;
   remix_of_username: string | null;
+  is_private: number;
 };
 
 export type TrackRow = {
@@ -52,6 +53,7 @@ export type TrackRow = {
   share_token: string | null;
   shared_at: number | null;
   allow_remix: number;
+  is_private: number;
   created_at: number;
 };
 
@@ -122,12 +124,13 @@ export function insertGeneration(g: {
   instrumental: boolean;
   model: string;
   remixOf?: { trackId: number; title: string | null; username: string } | null;
+  isPrivate: boolean;
 }): number {
   const r = db
     .prepare(
       `INSERT INTO generations (user_id, suno_task_id, mode, prompt, lyrics, style, title, mood, instrumental, model,
-                                remix_of_track_id, remix_of_title, remix_of_username)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                                remix_of_track_id, remix_of_title, remix_of_username, is_private)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       g.userId,
@@ -143,6 +146,7 @@ export function insertGeneration(g: {
       g.remixOf?.trackId ?? null,
       g.remixOf?.title ?? null,
       g.remixOf?.username ?? null,
+      g.isPrivate ? 1 : 0,
     );
   return Number(r.lastInsertRowid);
 }
@@ -187,8 +191,8 @@ const FAILURE_MESSAGES: Partial<Record<SunoTaskStatus, string>> = {
 function upsertClips(gen: GenerationRow, clips: SunoClip[]) {
   const stmt = db.prepare(
     `INSERT INTO tracks (generation_id, suno_audio_id, title, lyrics, style_tags, genre, mood, duration,
-                         source_audio_url, source_stream_url, source_image_url)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         source_audio_url, source_stream_url, source_image_url, is_private)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (suno_audio_id) DO UPDATE SET
        title = COALESCE(excluded.title, tracks.title),
        lyrics = COALESCE(excluded.lyrics, tracks.lyrics),
@@ -216,6 +220,8 @@ function upsertClips(gen: GenerationRow, clips: SunoClip[]) {
       c.audioUrl,
       c.streamAudioUrl,
       c.imageUrl,
+      // Set on insert only (not in the ON CONFLICT update), so a later per-track change sticks.
+      gen.is_private,
     );
   }
 }
@@ -372,9 +378,17 @@ export type CatalogueTrack = TrackRow & {
 
 export type CatalogueFilters = { genre?: string; creator?: string };
 
-export function listCatalogue(filters: CatalogueFilters, limit = 200): CatalogueTrack[] {
-  const where = ["g.status = 'complete'"];
-  const args: string[] = [];
+/** Private tracks are visible to their creator only — admins included, by design. */
+export function canViewTrack(viewerId: number, track: { owner_id: number; is_private: number }) {
+  return track.is_private === 0 || track.owner_id === viewerId;
+}
+
+// SQL twin of canViewTrack, for queries joining tracks t + generations g. Binds the viewer id.
+const VISIBLE = "(t.is_private = 0 OR g.user_id = ?)";
+
+export function listCatalogue(viewerId: number, filters: CatalogueFilters, limit = 200): CatalogueTrack[] {
+  const where = ["g.status = 'complete'", VISIBLE];
+  const args: (string | number)[] = [viewerId];
   if (filters.genre) {
     where.push("t.genre = ? COLLATE NOCASE");
     args.push(filters.genre);
@@ -396,33 +410,35 @@ export function listCatalogue(filters: CatalogueFilters, limit = 200): Catalogue
     .all(...args) as CatalogueTrack[];
 }
 
-export function catalogueFacets() {
+export function catalogueFacets(viewerId: number) {
   const genres = db
     .prepare(
       `SELECT t.genre AS value, COUNT(*) AS n FROM tracks t JOIN generations g ON g.id = t.generation_id
-        WHERE g.status = 'complete' AND t.genre IS NOT NULL GROUP BY t.genre COLLATE NOCASE ORDER BY n DESC, value`,
+        WHERE g.status = 'complete' AND ${VISIBLE} AND t.genre IS NOT NULL GROUP BY t.genre COLLATE NOCASE ORDER BY n DESC, value`,
     )
-    .all() as { value: string; n: number }[];
+    .all(viewerId) as { value: string; n: number }[];
   const creators = db
     .prepare(
       `SELECT u.username AS value, COUNT(*) AS n FROM tracks t
          JOIN generations g ON g.id = t.generation_id JOIN users u ON u.id = g.user_id
-        WHERE g.status = 'complete' GROUP BY u.id ORDER BY u.username COLLATE NOCASE`,
+        WHERE g.status = 'complete' AND ${VISIBLE} GROUP BY u.id ORDER BY u.username COLLATE NOCASE`,
     )
-    .all() as { value: string; n: number }[];
+    .all(viewerId) as { value: string; n: number }[];
   // node:sqlite rows have a null prototype, which React won't pass to client components.
   const plain = (rows: { value: string; n: number }[]) => rows.map(({ value, n }) => ({ value, n }));
   return { genres: plain(genres), creators: plain(creators) };
 }
 
-export function pendingGenerationsAll() {
+/** In-progress songs the viewer may see: everyone's public ones plus their own private ones. */
+export function pendingGenerationsVisibleTo(viewerId: number) {
   return db
     .prepare(
       `SELECT g.id, g.prompt, g.title, g.style, g.status, u.username
          FROM generations g JOIN users u ON u.id = g.user_id
-        WHERE g.status NOT IN ('complete', 'failed') ORDER BY g.created_at DESC`,
+        WHERE g.status NOT IN ('complete', 'failed') AND (g.is_private = 0 OR g.user_id = ?)
+        ORDER BY g.created_at DESC`,
     )
-    .all() as { id: number; prompt: string | null; title: string | null; style: string | null; status: GenerationStatus; username: string }[];
+    .all(viewerId) as { id: number; prompt: string | null; title: string | null; style: string | null; status: GenerationStatus; username: string }[];
 }
 
 // ---- deletion ----------------------------------------------------------------
@@ -452,4 +468,17 @@ export async function deleteTrack(user: { id: number; is_admin: number }, trackI
   // Files go after the row, so a failure here only leaves an orphan file, never a broken track.
   for (const p of [row.audio_path, row.image_path]) if (p) await removeMediaFile(p);
   return "deleted";
+}
+
+// ---- privacy -----------------------------------------------------------------
+
+/** Creator-only toggle. Returns false if the user doesn't own the track. */
+export function setTrackPrivate(userId: number, trackId: number, isPrivate: boolean): boolean {
+  const r = db
+    .prepare(
+      `UPDATE tracks SET is_private = ?
+        WHERE id = ? AND generation_id IN (SELECT id FROM generations WHERE user_id = ?)`,
+    )
+    .run(isPrivate ? 1 : 0, trackId, userId);
+  return r.changes > 0;
 }

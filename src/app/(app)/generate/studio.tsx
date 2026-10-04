@@ -481,15 +481,14 @@ function SubmitRow({
   onInstrumental: (v: boolean) => void;
   label?: string;
 }) {
+  // Kept in state (not left to the browser) so the choice survives the form reset after each submit.
+  const [isPrivate, setPrivate] = useState(false);
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line pt-6">
-      <label className="flex cursor-pointer select-none items-center gap-3 text-sm">
-        <input type="checkbox" name="instrumental" checked={instrumental} onChange={(e) => onInstrumental(e.target.checked)} className="peer sr-only" />
-        <span className="relative h-6 w-11 rounded-full bg-surface-3 transition after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition peer-checked:bg-violet peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-pink" />
-        <span>
-          <span className="font-medium">Instrumental</span> <span className="text-subtle">· no vocals</span>
-        </span>
-      </label>
+      <div className="flex flex-wrap gap-x-6 gap-y-3">
+        <Switch name="instrumental" checked={instrumental} onChange={onInstrumental} label="Instrumental" hint="no vocals" />
+        <Switch name="private" checked={isPrivate} onChange={setPrivate} label="Private" hint="only you can see it" />
+      </div>
 
       <button type="submit" disabled={pending} className={`${btnPrimary} w-full px-7 py-3 text-base sm:w-auto`}>
         {pending ? (
@@ -501,6 +500,30 @@ function SubmitRow({
         )}
       </button>
     </div>
+  );
+}
+
+function Switch({
+  name,
+  checked,
+  onChange,
+  label: text,
+  hint,
+}: {
+  name: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  hint: string;
+}) {
+  return (
+    <label className="flex cursor-pointer select-none items-center gap-3 text-sm">
+      <input type="checkbox" name={name} checked={checked} onChange={(e) => onChange(e.target.checked)} className="peer sr-only" />
+      <span className="relative h-6 w-11 flex-none rounded-full bg-surface-3 transition after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition peer-checked:bg-violet peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-pink" />
+      <span>
+        <span className="font-medium">{text}</span> <span className="text-subtle">· {hint}</span>
+      </span>
+    </label>
   );
 }
 

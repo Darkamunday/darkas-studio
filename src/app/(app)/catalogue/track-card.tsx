@@ -3,6 +3,7 @@ import type { CatalogueTrack } from "@/lib/tracks";
 import { Player } from "@/components/player";
 import { btnSecondary, card, tag } from "@/components/ui";
 import { DeleteTrackButton } from "./delete-button";
+import { PrivateToggle } from "./private-toggle";
 import { RemixToggle } from "./remix-toggle";
 import { ShareButton } from "./share-button";
 
@@ -64,6 +65,7 @@ export function TrackCard({
             </Link>
             · {dateFmt.format(new Date(t.created_at * 1000))}
             <span className="ml-auto flex gap-1">
+              {t.is_private ? <span className={tag.mood}>Private</span> : null}
               {t.share_token && !isOwner ? <span className={tag.plain}>Shared publicly</span> : null}
               {t.instrumental ? <span className={tag.plain}>Instrumental</span> : null}
             </span>
@@ -114,6 +116,7 @@ export function TrackCard({
             </a>
             {isOwner && <ShareButton trackId={t.id} initialUrl={shareUrl} />}
             {canDelete && <DeleteTrackButton trackId={t.id} title={t.title ?? "Untitled"} />}
+            {isOwner && <PrivateToggle trackId={t.id} initial={t.is_private === 1} />}
             {isOwner && <RemixToggle trackId={t.id} initial={t.allow_remix === 1} />}
           </div>
         </div>

@@ -29,7 +29,7 @@ export function verifyRemixSourceToken(token: string): number | null {
   return Number(id);
 }
 
-export type RemixSource = Pick<TrackRow, "id" | "title" | "lyrics" | "style_tags" | "genre" | "duration" | "allow_remix"> & {
+export type RemixSource = Pick<TrackRow, "id" | "title" | "lyrics" | "style_tags" | "genre" | "duration" | "allow_remix" | "is_private"> & {
   owner_id: number;
   username: string;
   instrumental: number;
@@ -39,7 +39,7 @@ export type RemixSource = Pick<TrackRow, "id" | "title" | "lyrics" | "style_tags
 export function getRemixSource(trackId: number): RemixSource | undefined {
   return db
     .prepare(
-      `SELECT t.id, t.title, t.lyrics, t.style_tags, t.genre, t.duration, t.allow_remix,
+      `SELECT t.id, t.title, t.lyrics, t.style_tags, t.genre, t.duration, t.allow_remix, t.is_private,
               g.user_id AS owner_id, u.username, g.instrumental,
               (t.image_path IS NOT NULL OR t.source_image_url IS NOT NULL) AS has_cover
          FROM tracks t JOIN generations g ON g.id = t.generation_id JOIN users u ON u.id = g.user_id
@@ -48,9 +48,12 @@ export function getRemixSource(trackId: number): RemixSource | undefined {
     .get(trackId) as RemixSource | undefined;
 }
 
-/** Anyone may remix a track unless its creator has switched remixing off; creators can always remix their own. */
-export function canRemix(user: { id: number }, src: { owner_id: number; allow_remix: number }) {
-  return src.allow_remix === 1 || src.owner_id === user.id;
+/**
+ * Anyone may remix a track unless its creator has switched remixing off or made it private;
+ * creators can always remix their own.
+ */
+export function canRemix(user: { id: number }, src: { owner_id: number; allow_remix: number; is_private: number }) {
+  return src.owner_id === user.id || (src.allow_remix === 1 && src.is_private === 0);
 }
 
 /** Creator-only toggle. Returns false if the user doesn't own the track. */

@@ -5,7 +5,7 @@ import { requireUser, type User } from "@/lib/auth";
 import { MODELS, SIMPLE_PROMPT_MAX, TITLE_MAX, limitsFor } from "@/lib/models";
 import { canRemix, getRemixSource, remixSourceUrl } from "@/lib/remix";
 import { DEFAULT_MODEL, generate, remix, SunoError, type GenerateInput, type RemixInput } from "@/lib/suno";
-import { MAX_IN_FLIGHT_PER_USER, MOODS, inFlightCount, insertGeneration } from "@/lib/tracks";
+import { MAX_IN_FLIGHT_PER_USER, MOODS, canViewTrack, inFlightCount, insertGeneration } from "@/lib/tracks";
 
 export type GenerateState =
   | { ok: true; generationId: number }
@@ -68,6 +68,7 @@ const SimpleSchema = z.object({
   ),
   instrumental: z.boolean(),
   mood: z.enum(MOODS).nullable(),
+  isPrivate: z.boolean(),
 });
 
 export async function generateSimple(_prev: GenerateState, formData: FormData): Promise<GenerateState> {
@@ -76,14 +77,15 @@ export async function generateSimple(_prev: GenerateState, formData: FormData): 
     prompt: formData.get("prompt"),
     instrumental: formData.get("instrumental") === "on",
     mood: formData.get("mood") || null,
+    isPrivate: formData.get("private") === "on",
   });
   if (!parsed.success) return invalid(parsed.error);
 
-  const { prompt, instrumental, mood } = parsed.data;
+  const { prompt, instrumental, mood, isPrivate } = parsed.data;
   return submit(
     user,
     { customMode: false, instrumental, model: DEFAULT_MODEL, prompt },
-    { mode: "simple", prompt, mood },
+    { mode: "simple", prompt, mood, isPrivate },
   );
 }
 
@@ -101,6 +103,7 @@ const AdvancedSchema = z
     instrumental: z.boolean(),
     model: z.enum(MODELS),
     mood: z.enum(MOODS).nullable(),
+    isPrivate: z.boolean(),
   })
   .superRefine((v, ctx) => {
     const max = limitsFor(v.model);
@@ -125,16 +128,17 @@ export async function generateAdvanced(_prev: GenerateState, formData: FormData)
     instrumental: formData.get("instrumental") === "on",
     model: formData.get("model"),
     mood: formData.get("mood") || null,
+    isPrivate: formData.get("private") === "on",
   });
   if (!parsed.success) return invalid(parsed.error);
 
-  const { title, style, instrumental, model, mood } = parsed.data;
+  const { title, style, instrumental, model, mood, isPrivate } = parsed.data;
   const lyrics = instrumental ? null : parsed.data.lyrics;
   return submit(
     user,
     // In custom mode `prompt` is sung verbatim as the lyrics (works on every model).
     { customMode: true, instrumental, model, title, style, ...(lyrics ? { prompt: lyrics } : {}) },
-    { mode: "advanced", title, style, lyrics, mood },
+    { mode: "advanced", title, style, lyrics, mood, isPrivate },
   );
 }
 
@@ -160,6 +164,7 @@ const RemixSchema = z
     instrumental: z.boolean(),
     model: z.enum(REMIX_MODELS),
     mood: z.enum(MOODS).nullable(),
+    isPrivate: z.boolean(),
   })
   .superRefine((v, ctx) => {
     if (!v.instrumental && v.lyrics.length > 5000) {
@@ -177,11 +182,14 @@ export async function generateRemix(_prev: GenerateState, formData: FormData): P
     instrumental: formData.get("instrumental") === "on",
     model: formData.get("model"),
     mood: formData.get("mood") || null,
+    isPrivate: formData.get("private") === "on",
   });
   if (!parsed.success) return invalid(parsed.error);
 
-  const { sourceTrackId, title, style, instrumental, model, mood } = parsed.data;
-  const src = getRemixSource(sourceTrackId);
+  const { sourceTrackId, title, style, instrumental, model, mood, isPrivate } = parsed.data;
+  const found = getRemixSource(sourceTrackId);
+  // Someone else's private song is treated as missing, so its existence isn't revealed.
+  const src = found && canViewTrack(user.id, found) ? found : undefined;
   if (!src) return { ok: false, error: "That song isn't available to remix any more." };
   if (!canRemix(user, src)) return { ok: false, error: `${src.username} has turned off remixes for this song.` };
   if (src.duration && src.duration > 8 * 60) return { ok: false, error: "Songs over 8 minutes can't be remixed." };
@@ -191,6 +199,6 @@ export async function generateRemix(_prev: GenerateState, formData: FormData): P
   return submit(
     user,
     { kind: "remix", uploadUrl: remixSourceUrl(src.id), model, instrumental, title, style, ...(lyrics ? { lyrics } : {}) },
-    { mode: "advanced", title, style, lyrics, mood, remixOf: { trackId: src.id, title: src.title, username: src.username } },
+    { mode: "advanced", title, style, lyrics, mood, isPrivate, remixOf: { trackId: src.id, title: src.title, username: src.username } },
   );
 }

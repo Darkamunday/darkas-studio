@@ -3,7 +3,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { appUrl } from "@/lib/url";
 import { canRemix } from "@/lib/remix";
-import { canDeleteTrack, catalogueFacets, listCatalogue, pendingGenerationsAll, refreshStalePending } from "@/lib/tracks";
+import { canDeleteTrack, catalogueFacets, listCatalogue, pendingGenerationsVisibleTo, refreshStalePending } from "@/lib/tracks";
 import { Equalizer } from "@/components/equalizer";
 import { btnPrimary, card } from "@/components/ui";
 import { FilterBar } from "./filter-bar";
@@ -20,9 +20,9 @@ export default async function CataloguePage({ searchParams }: PageProps<"/catalo
   const filters = { genre: one(sp.genre), creator: one(sp.creator) };
 
   refreshStalePending();
-  const tracks = listCatalogue(filters);
-  const facets = catalogueFacets();
-  const pending = pendingGenerationsAll();
+  const tracks = listCatalogue(user.id, filters);
+  const facets = catalogueFacets(user.id);
+  const pending = pendingGenerationsVisibleTo(user.id);
   const filtered = Boolean(filters.genre || filters.creator);
   const base = await appUrl();
 

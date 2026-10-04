@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth";
 import { canRemix, getRemixSource } from "@/lib/remix";
 import { DEFAULT_MODEL } from "@/lib/suno";
-import { MOODS, pendingGenerationsForUser, refreshStalePending } from "@/lib/tracks";
+import { MOODS, canViewTrack, pendingGenerationsForUser, refreshStalePending } from "@/lib/tracks";
 import { GenerateStudio, type RemixSourceInfo } from "./studio";
 
 export const metadata: Metadata = { title: "Create" };
@@ -18,7 +18,8 @@ export default async function GeneratePage({ searchParams }: PageProps<"/generat
   let remix: RemixSourceInfo | null = null;
   let remixError: string | null = null;
   if (remixId) {
-    const src = getRemixSource(remixId);
+    const found = getRemixSource(remixId);
+    const src = found && canViewTrack(user.id, found) ? found : undefined;
     if (!src) remixError = "That song isn't available to remix any more.";
     else if (!canRemix(user, src)) remixError = `${src.username} has turned off remixes for that song.`;
     else

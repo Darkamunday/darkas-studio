@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
-import { deleteTrack } from "@/lib/tracks";
+import { deleteTrack, setTrackPrivate } from "@/lib/tracks";
 import { disableShare, enableShare } from "@/lib/sharing";
 import { setAllowRemix } from "@/lib/remix";
 import { appUrl } from "@/lib/url";
@@ -37,6 +37,16 @@ export async function setAllowRemixAction(trackId: number, allow: boolean): Prom
   const user = await requireUser();
   // Creator-only, like sharing: admins can't change someone else's remix setting.
   if (!setAllowRemix(user.id, Number(trackId), Boolean(allow))) {
+    return { ok: false, error: "Only the person who made this song can change that." };
+  }
+  revalidatePath("/catalogue");
+  return { ok: true };
+}
+
+export async function setTrackPrivateAction(trackId: number, isPrivate: boolean): Promise<{ ok: boolean; error?: string }> {
+  const user = await requireUser();
+  // Creator-only, like sharing and remix settings.
+  if (!setTrackPrivate(user.id, Number(trackId), Boolean(isPrivate))) {
     return { ok: false, error: "Only the person who made this song can change that." };
   }
   revalidatePath("/catalogue");

@@ -16,7 +16,9 @@ const TYPES: Record<string, string> = {
 };
 
 export function getTrack(id: number) {
-  return db.prepare("SELECT * FROM tracks WHERE id = ?").get(id) as TrackRow | undefined;
+  return db
+    .prepare("SELECT t.*, g.user_id AS owner_id FROM tracks t JOIN generations g ON g.id = t.generation_id WHERE t.id = ?")
+    .get(id) as (TrackRow & { owner_id: number }) | undefined;
 }
 
 /** Make sure the track's files are local, retrying a download that failed earlier. */
