@@ -341,6 +341,30 @@ export const ms: Messages = {
     notFound: "Lagu itu tidak tersedia.",
   },
 
+  covers: {
+    change: "Tukar kulit",
+    promptLabel: "Terangkan kulit baharu",
+    promptPlaceholder: "cth. susuk seorang diri di hentian bas ketika hujan malam, lampu neon, sinematik",
+    suggestion: "Kulit untuk lagu bertajuk “{title}”: {style}",
+    generate: "Jana",
+    generating: "Melukis kulit lagu kamu…",
+    useThis: "Guna ini",
+    applying: "Menyimpan…",
+    tryAgain: "Cuba lagi",
+    cancel: "Batal",
+    hint: "Dihasilkan dengan AI di Comfy Cloud, biasanya dalam beberapa saat. Kulit semasa kekal sehingga kamu memilih yang baharu.",
+    errors: {
+      not_configured: "Kulit AI belum disediakan — beritahu admin.",
+      no_credits: "Kredit perkhidmatan imej sudah habis — beritahu admin.",
+      busy: "Perkhidmatan imej sedang sibuk — cuba lagi sebentar nanti.",
+      failed: "Yang ini tak berjaya — cuba lagi atau ubah ayatnya.",
+      generic: "Tidak dapat menghubungi perkhidmatan imej — cuba lagi sebentar nanti.",
+      tooShort: "Terangkan dalam beberapa perkataan.",
+      forbidden: "Hanya pencipta lagu ini boleh menukar kulitnya.",
+      oneAtATime: "Kamu sudah ada kulit yang sedang dibuat — tunggu sampai siap.",
+    },
+  },
+
   share: {
     songBy: "Lagu oleh {name}",
     byOn: "oleh {name} · {date}",

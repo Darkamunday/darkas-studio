@@ -340,6 +340,30 @@ export const fr: Messages = {
     notFound: "Cette chanson n'est pas disponible.",
   },
 
+  covers: {
+    change: "Changer la pochette",
+    promptLabel: "Décris la nouvelle pochette",
+    promptPlaceholder: "ex. une silhouette seule à un arrêt de bus sous la pluie, néons, nuit, ambiance cinéma",
+    suggestion: "Pochette pour une chanson intitulée « {title} » : {style}",
+    generate: "Générer",
+    generating: "On peint ta pochette…",
+    useThis: "Utiliser celle-ci",
+    applying: "Enregistrement…",
+    tryAgain: "Réessayer",
+    cancel: "Annuler",
+    hint: "Créée par IA sur Comfy Cloud, en général en quelques secondes. Ta pochette actuelle reste en place tant que tu n'en choisis pas une nouvelle.",
+    errors: {
+      not_configured: "Les pochettes ne sont pas encore configurées — préviens l'admin.",
+      no_credits: "Le service d'images n'a plus de crédits — préviens l'admin.",
+      busy: "Le service d'images est occupé — réessaie dans un instant.",
+      failed: "Celle-ci n'a pas marché — réessaie ou reformule.",
+      generic: "Impossible de joindre le service d'images — réessaie dans un instant.",
+      tooShort: "Décris-la en quelques mots.",
+      forbidden: "Seule la personne qui a créé cette chanson peut changer sa pochette.",
+      oneAtATime: "Tu as déjà une pochette en préparation — attends qu'elle soit finie.",
+    },
+  },
+
   share: {
     songBy: "Une chanson de {name}",
     byOn: "par {name} · {date}",

@@ -53,6 +53,8 @@ migrations only ever add things, so older code keeps working with a newer databa
 | `SUNO_CREDITS_PER_GENERATION` | no | Used for the admin page's credit estimates. Default: `12` |
 | `SUNO_API_BASE` | no | Default: `https://api.sunoapi.org/api/v1` |
 | `SUNO_MOCK` | no | `1` fakes the provider locally (no credits spent) — for development only |
+| `COMFY_CLOUD_API_KEY` | no | Comfy Cloud API key (from platform.comfy.org; needs a plan with API access). Turns on **Change cover**: creators describe a cover and it's generated with Z-Image Turbo. Hidden when unset. |
+| `COMFY_MOCK` | no | `1` fakes Comfy Cloud with placeholder images — for development only |
 
 ## Data
 

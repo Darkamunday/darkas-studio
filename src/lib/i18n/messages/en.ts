@@ -343,6 +343,30 @@ export const en = {
     notFound: "That song isn't available.",
   },
 
+  covers: {
+    change: "Change cover",
+    promptLabel: "Describe the new cover",
+    promptPlaceholder: "e.g. a lone figure at a rainy neon bus stop at night, cinematic and moody",
+    suggestion: "Artwork for a song called “{title}”: {style}",
+    generate: "Generate",
+    generating: "Painting your cover…",
+    useThis: "Use this",
+    applying: "Saving…",
+    tryAgain: "Try again",
+    cancel: "Cancel",
+    hint: "Made with AI on Comfy Cloud, usually in a few seconds. Your current cover stays until you pick a new one.",
+    errors: {
+      not_configured: "Cover art isn't set up yet — let the admin know.",
+      no_credits: "The image service is out of credits — let the admin know.",
+      busy: "The image service is busy — try again in a moment.",
+      failed: "That one didn't work — try again or reword it.",
+      generic: "Couldn't reach the image service — try again in a moment.",
+      tooShort: "Describe it in a few words.",
+      forbidden: "Only the person who made this song can change its cover.",
+      oneAtATime: "You've already got a cover cooking — let it finish first.",
+    },
+  },
+
   share: {
     songBy: "A song by {name}",
     byOn: "by {name} · {date}",

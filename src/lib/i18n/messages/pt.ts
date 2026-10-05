@@ -341,6 +341,30 @@ export const pt: Messages = {
     notFound: "Essa música não está disponível.",
   },
 
+  covers: {
+    change: "Trocar capa",
+    promptLabel: "Descreva a nova capa",
+    promptPlaceholder: "ex.: uma pessoa sozinha num ponto de ônibus na chuva à noite, neon, clima de cinema",
+    suggestion: "Capa para uma música chamada “{title}”: {style}",
+    generate: "Gerar",
+    generating: "Pintando sua capa…",
+    useThis: "Usar esta",
+    applying: "Salvando…",
+    tryAgain: "Tentar de novo",
+    cancel: "Cancelar",
+    hint: "Feita com IA no Comfy Cloud, geralmente em poucos segundos. Sua capa atual continua até você escolher uma nova.",
+    errors: {
+      not_configured: "As capas com IA ainda não foram configuradas — avise o admin.",
+      no_credits: "O serviço de imagens ficou sem créditos — avise o admin.",
+      busy: "O serviço de imagens está ocupado — tente de novo daqui a pouco.",
+      failed: "Essa não deu certo — tente de novo ou reformule.",
+      generic: "Não deu para falar com o serviço de imagens — tente de novo daqui a pouco.",
+      tooShort: "Descreva em poucas palavras.",
+      forbidden: "Só quem criou esta música pode trocar a capa.",
+      oneAtATime: "Você já tem uma capa sendo feita — espere terminar.",
+    },
+  },
+
   share: {
     songBy: "Uma música de {name}",
     byOn: "por {name} · {date}",

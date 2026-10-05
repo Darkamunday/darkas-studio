@@ -2,6 +2,7 @@ import type { BinnedTrack } from "@/lib/bin";
 import { plural } from "@/lib/i18n/format";
 import { getI18n } from "@/lib/i18n/server";
 import { BinButton } from "./bin-buttons";
+import { coverVersion } from "@/lib/cover-url";
 
 /** One binned track: thumbnail, title, a details line, and Restore. Shared with the admin page. */
 export function BinRow({ track: t, title, children }: { track: BinnedTrack; title: string; children: React.ReactNode }) {
@@ -10,7 +11,7 @@ export function BinRow({ track: t, title, children }: { track: BinnedTrack; titl
     <li className="flex items-center gap-4 p-4">
       {hasCover ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={`/api/bin/${t.id}/cover`} alt="" loading="lazy" className="h-14 w-14 flex-none rounded-xl object-cover opacity-80" />
+        <img src={`/api/bin/${t.id}/cover${coverVersion(t.image_path)}`} alt="" loading="lazy" className="h-14 w-14 flex-none rounded-xl object-cover opacity-80" />
       ) : (
         <div className="h-14 w-14 flex-none rounded-xl bg-brand opacity-30" />
       )}

@@ -3,13 +3,16 @@ import type { CatalogueTrack } from "@/lib/tracks";
 import { Player } from "@/components/player";
 import { BIN_DAYS } from "@/lib/bin";
 import { LOCALE_INFO } from "@/lib/i18n/config";
-import { lookup, rich } from "@/lib/i18n/format";
+import { fmt, lookup, rich } from "@/lib/i18n/format";
 import { getI18n } from "@/lib/i18n/server";
 import { btnSecondary, card, tag } from "@/components/ui";
 import { DeleteTrackButton } from "./delete-button";
 import { PrivateToggle } from "./private-toggle";
 import { RemixToggle } from "./remix-toggle";
+import { CoverChanger } from "./cover-changer";
+import { coversEnabled } from "@/lib/comfy";
 import { ShareButton } from "./share-button";
+import { coverVersion } from "@/lib/cover-url";
 
 export async function TrackCard({
   track: t,
@@ -41,7 +44,7 @@ export async function TrackCard({
         {hasCover ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={`/api/media/${t.id}/cover`}
+            src={`/api/media/${t.id}/cover${coverVersion(t.image_path)}`}
             alt=""
             loading="lazy"
             className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
@@ -131,6 +134,14 @@ export async function TrackCard({
                 </svg>
                 {m.timed.open}
               </Link>
+            )}
+            {isOwner && coversEnabled() && (
+              <CoverChanger
+                trackId={t.id}
+                suggestion={fmt(m.covers.suggestion, { title: t.title ?? m.common.untitled, style: t.style_tags ?? t.genre ?? "" })
+                  .replace(/[:：]\s*$/, "")
+                  .slice(0, 600)}
+              />
             )}
             {isOwner && <ShareButton trackId={t.id} initialUrl={shareUrl} />}
             {canDelete && (

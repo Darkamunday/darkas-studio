@@ -154,6 +154,21 @@ const MIGRATIONS: string[] = [
     fetched_by INTEGER REFERENCES users(id) ON DELETE SET NULL
   );
   `,
+  // 8: AI cover art (Comfy Cloud). One row per attempt; the image is downloaded into covers/
+  // when ready and becomes the track's cover only when its creator picks it.
+  `
+  CREATE TABLE cover_jobs (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    track_id     INTEGER NOT NULL,
+    user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    comfy_job_id TEXT NOT NULL,
+    prompt       TEXT NOT NULL,
+    status       TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'ready', 'failed', 'applied', 'discarded')),
+    image_path   TEXT,
+    created_at   INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+  CREATE INDEX cover_jobs_track ON cover_jobs(track_id);
+  `,
 ];
 
 function open(): DatabaseSync {

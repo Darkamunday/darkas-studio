@@ -9,6 +9,7 @@ import { btnPrimary, card, tag } from "@/components/ui";
 import { LOCALE_INFO } from "@/lib/i18n/config";
 import { fmt, lookup, rich } from "@/lib/i18n/format";
 import { getI18n } from "@/lib/i18n/server";
+import { coverVersion } from "@/lib/cover-url";
 
 export async function generateMetadata({ params }: PageProps<"/s/[token]">): Promise<Metadata> {
   const { token } = await params;
@@ -19,7 +20,7 @@ export async function generateMetadata({ params }: PageProps<"/s/[token]">): Pro
   const base = await appUrl();
   const title = t.title ?? m.common.untitled;
   const description = [fmt(m.share.songBy, { name: t.username }), t.genre, lookup(m.moods, t.mood)].filter(Boolean).join(" · ");
-  const cover = t.image_path || t.source_image_url ? `${base}/api/share/${token}/cover` : undefined;
+  const cover = t.image_path || t.source_image_url ? `${base}/api/share/${token}/cover${coverVersion(t.image_path)}` : undefined;
 
   return {
     title: `${title} — ${t.username}`,
@@ -55,7 +56,7 @@ export default async function SharedSongPage({ params }: PageProps<"/s/[token]">
         <div className="relative aspect-square w-full bg-surface-2">
           {hasCover ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={`/api/share/${token}/cover`} alt="" className="h-full w-full object-cover" />
+            <img src={`/api/share/${token}/cover${coverVersion(t.image_path)}`} alt="" className="h-full w-full object-cover" />
           ) : (
             <div className="h-full w-full bg-brand opacity-60" />
           )}

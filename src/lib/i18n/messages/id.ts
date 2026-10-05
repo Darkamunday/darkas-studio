@@ -340,6 +340,30 @@ export const id: Messages = {
     notFound: "Lagu itu tidak tersedia.",
   },
 
+  covers: {
+    change: "Ganti sampul",
+    promptLabel: "Gambarkan sampul barunya",
+    promptPlaceholder: "mis. sosok sendirian di halte bus saat hujan malam hari, lampu neon, sinematik",
+    suggestion: "Sampul untuk lagu berjudul “{title}”: {style}",
+    generate: "Buat",
+    generating: "Melukis sampulmu…",
+    useThis: "Pakai ini",
+    applying: "Menyimpan…",
+    tryAgain: "Coba lagi",
+    cancel: "Batal",
+    hint: "Dibuat dengan AI di Comfy Cloud, biasanya dalam beberapa detik. Sampulmu yang sekarang tetap ada sampai kamu memilih yang baru.",
+    errors: {
+      not_configured: "Sampul AI belum disiapkan — kabari admin.",
+      no_credits: "Kredit layanan gambar habis — kabari admin.",
+      busy: "Layanan gambar sedang sibuk — coba lagi sebentar lagi.",
+      failed: "Yang ini gagal — coba lagi atau ubah kata-katanya.",
+      generic: "Tidak bisa menghubungi layanan gambar — coba lagi sebentar lagi.",
+      tooShort: "Gambarkan dalam beberapa kata.",
+      forbidden: "Hanya pembuat lagu ini yang bisa mengganti sampulnya.",
+      oneAtATime: "Kamu sudah punya sampul yang sedang dibuat — tunggu sampai selesai.",
+    },
+  },
+
   share: {
     songBy: "Lagu oleh {name}",
     byOn: "oleh {name} · {date}",
