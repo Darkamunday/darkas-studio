@@ -12,7 +12,7 @@ import { RemixToggle } from "./remix-toggle";
 import { CoverChanger } from "./cover-changer";
 import { coversEnabled } from "@/lib/comfy";
 import { ShareButton } from "./share-button";
-import { coverVersion } from "@/lib/cover-url";
+import { COVER_PROMPT_MAX, coverVersion } from "@/lib/cover-url";
 
 export async function TrackCard({
   track: t,
@@ -140,7 +140,7 @@ export async function TrackCard({
                 trackId={t.id}
                 suggestion={fmt(m.covers.suggestion, { title: t.title ?? m.common.untitled, style: t.style_tags ?? t.genre ?? "" })
                   .replace(/[:：]\s*$/, "")
-                  .slice(0, 600)}
+                  .slice(0, COVER_PROMPT_MAX)}
               />
             )}
             {isOwner && <ShareButton trackId={t.id} initialUrl={shareUrl} />}

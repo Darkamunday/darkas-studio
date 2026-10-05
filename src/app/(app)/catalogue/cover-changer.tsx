@@ -3,10 +3,10 @@
 import { useEffect, useState, useTransition } from "react";
 import { Equalizer } from "@/components/equalizer";
 import { btnGhost, btnPrimary, btnSecondary, input } from "@/components/ui";
+import { COVER_PROMPT_MAX } from "@/lib/cover-url";
 import { useI18n } from "@/lib/i18n/client";
 import { applyCoverAction, checkCoverAction, discardCoverAction, startCoverAction } from "./actions";
 
-const PROMPT_MAX = 600; // keep in step with COVER_PROMPT_MAX in lib/covers.ts
 
 type Stage = { kind: "closed" } | { kind: "prompt" } | { kind: "working"; jobId: number } | { kind: "ready"; jobId: number; previewUrl: string };
 
@@ -109,11 +109,14 @@ export function CoverChanger({ trackId, suggestion }: { trackId: number; suggest
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              rows={3}
-              maxLength={PROMPT_MAX}
+              rows={5}
+              maxLength={COVER_PROMPT_MAX}
               placeholder={m.covers.promptPlaceholder}
               className={`${input} resize-y px-3 py-2 text-sm`}
             />
+            <span className="self-end text-xs tabular-nums text-subtle">
+              {prompt.length}/{COVER_PROMPT_MAX}
+            </span>
           </label>
           <p className="text-xs text-subtle">{m.covers.hint}</p>
           <div className="flex flex-wrap gap-2">

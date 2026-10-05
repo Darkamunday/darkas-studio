@@ -6,7 +6,7 @@ import { COVER_DIR, downloadTo, removeMediaFile } from "./storage";
 // Creator-only AI cover art: start a job, poll it, then apply or discard the result.
 // Nothing changes on the track until its creator picks an image.
 
-export const COVER_PROMPT_MAX = 600;
+export { COVER_PROMPT_MAX } from "./cover-url";
 const TIMEOUT_SECONDS = 5 * 60;
 
 type CoverJob = {

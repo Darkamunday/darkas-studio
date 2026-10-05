@@ -4,3 +4,6 @@ export function coverVersion(imagePath: string | null | undefined): string {
   const file = imagePath?.split("/").pop();
   return file ? `?v=${encodeURIComponent(file)}` : "";
 }
+
+/** Longest cover prompt we accept (the box and the server share this). Z-Image's text encoder copes with long descriptions. */
+export const COVER_PROMPT_MAX = 2000;
