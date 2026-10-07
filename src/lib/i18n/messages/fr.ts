@@ -456,5 +456,13 @@ export const fr: Messages = {
     enableAll: "Activer pour tous",
     disableAll: "Désactiver pour tous",
     disableAllConfirm: "Désactiver le chat pour tout le monde sauf les admins ? Leurs conversations sont conservées.",
+    masterHeading: "Prompt principal",
+    masterBlurb: "Envoyé en premier avec chaque message, pour tout le monde, avant leurs instructions personnalisées. Les utilisateurs ne le voient jamais. Les changements s'appliquent dès le message suivant.",
+    masterDefault: "Version par défaut",
+    masterCustom: "Modifié par {name} · {date}",
+    masterSave: "Enregistrer",
+    masterReset: "Revenir au défaut",
+    masterResetConfirm: "Revenir au prompt principal par défaut ? Ta version modifiée sera perdue.",
+    masterCount: "{n} / {max}",
   },
 };

@@ -457,5 +457,13 @@ export const ms: Messages = {
     enableAll: "Hidupkan untuk semua",
     disableAll: "Matikan untuk semua",
     disableAllConfirm: "Matikan sembang untuk semua orang kecuali admin? Sembang mereka akan disimpan.",
+    masterHeading: "Prompt utama",
+    masterBlurb: "Dihantar dahulu bersama setiap mesej, untuk semua orang, sebelum arahan tersuai mereka. Pengguna tidak pernah melihatnya. Perubahan berkuat kuasa mulai mesej seterusnya.",
+    masterDefault: "Menggunakan lalai",
+    masterCustom: "Disunting oleh {name} · {date}",
+    masterSave: "Simpan",
+    masterReset: "Kembali ke lalai",
+    masterResetConfirm: "Kembali ke prompt utama lalai? Versi suntingan anda akan hilang.",
+    masterCount: "{n} / {max}",
   },
 };

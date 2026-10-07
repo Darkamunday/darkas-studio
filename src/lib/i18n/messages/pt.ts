@@ -457,5 +457,13 @@ export const pt: Messages = {
     enableAll: "Ligar para todos",
     disableAll: "Desligar para todos",
     disableAllConfirm: "Desligar o chat para todos, menos os admins? As conversas deles são mantidas.",
+    masterHeading: "Prompt principal",
+    masterBlurb: "Enviado primeiro em toda mensagem, para todos, antes das instruções personalizadas de cada um. Os usuários nunca o veem. As mudanças valem a partir da próxima mensagem.",
+    masterDefault: "Usando o padrão",
+    masterCustom: "Editado por {name} · {date}",
+    masterSave: "Salvar",
+    masterReset: "Voltar ao padrão",
+    masterResetConfirm: "Voltar ao prompt principal padrão? Sua versão editada será perdida.",
+    masterCount: "{n} / {max}",
   },
 };

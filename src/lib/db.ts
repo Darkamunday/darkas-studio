@@ -207,6 +207,16 @@ const MIGRATIONS: string[] = [
   `
   ALTER TABLE users ADD COLUMN chat_instructions TEXT;
   `,
+  // 11: app-wide settings an admin can change without a rebuild (first: the chat master prompt).
+  // A missing row means "use the default from the code".
+  `
+  CREATE TABLE settings (
+    key        TEXT PRIMARY KEY,
+    value      TEXT NOT NULL,
+    updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL
+  );
+  `,
 ];
 
 function open(): DatabaseSync {

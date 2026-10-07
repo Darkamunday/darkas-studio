@@ -13,9 +13,10 @@ import {
   setConversationModel,
 } from "@/lib/chat/store";
 import { buildPrompt, systemPrompt } from "@/lib/chat/context";
+import { getMasterPrompt } from "@/lib/chat/master-prompt";
 import type { ChatEvent } from "@/lib/chat/events";
 import { OllamaError, completeChat, streamChat, type ChatTurn } from "@/lib/chat/ollama";
-import { CHAT_MODELS, DEFAULT_MODEL, MAX_MESSAGE_CHARS, SYSTEM_PROMPT, findChatModel } from "@/config/chat";
+import { CHAT_MODELS, DEFAULT_MODEL, MAX_MESSAGE_CHARS, findChatModel } from "@/config/chat";
 
 export const dynamic = "force-dynamic";
 
@@ -93,7 +94,7 @@ export async function POST(req: NextRequest) {
 
   // A model removed from the config since the chat started falls back to the default.
   const model = findChatModel(conversation.model) ?? findChatModel(DEFAULT_MODEL) ?? CHAT_MODELS[0];
-  const prompt = buildPrompt(systemPrompt(SYSTEM_PROMPT, getInstructions(user.id)), history, model);
+  const prompt = buildPrompt(systemPrompt(getMasterPrompt().text, getInstructions(user.id)), history, model);
   const needsTitle = !conversation.title;
   const firstUserMessage = history.find((m) => m.role === "user")!.content;
 

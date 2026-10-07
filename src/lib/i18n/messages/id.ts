@@ -456,5 +456,13 @@ export const id: Messages = {
     enableAll: "Aktifkan untuk semua",
     disableAll: "Nonaktifkan untuk semua",
     disableAllConfirm: "Nonaktifkan chat untuk semua orang kecuali admin? Obrolan mereka tetap disimpan.",
+    masterHeading: "Prompt utama",
+    masterBlurb: "Dikirim paling awal di setiap pesan, untuk semua orang, sebelum instruksi khusus mereka. Pengguna tidak pernah melihatnya. Perubahan berlaku mulai pesan berikutnya.",
+    masterDefault: "Memakai bawaan",
+    masterCustom: "Diubah oleh {name} · {date}",
+    masterSave: "Simpan",
+    masterReset: "Kembalikan ke bawaan",
+    masterResetConfirm: "Kembali ke prompt utama bawaan? Versi yang kamu ubah akan hilang.",
+    masterCount: "{n} / {max}",
   },
 };

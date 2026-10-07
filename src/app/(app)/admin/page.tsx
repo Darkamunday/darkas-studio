@@ -11,6 +11,8 @@ import { timedLyricsCandidates } from "@/lib/timed-lyrics";
 import { BinRow, DaysLeft } from "../catalogue/deleted/bin-row";
 import { createInvite, revokeInvite, setChatCap, setChatEnabled, setChatForAll, setUserAdmin, setUserDisabled } from "./actions";
 import { ConfirmButton } from "./confirm-button";
+import { MasterPromptForm } from "./master-prompt-form";
+import { getMasterPrompt } from "@/lib/chat/master-prompt";
 import { chatUsageByUser, chatUsageTotals } from "@/lib/chat/usage";
 import { DEFAULT_DAILY_CAP } from "@/config/chat";
 import { getI18n } from "@/lib/i18n/server";
@@ -58,6 +60,7 @@ export default async function AdminPage() {
   const chatUsers = chatUsageByUser();
   const chatTotals = chatUsageTotals();
   const c = m.chatAdmin;
+  const master = getMasterPrompt();
   const timedCandidates = timedLyricsCandidates(me.id);
   const invites = db
     .prepare(
@@ -267,6 +270,16 @@ export default async function AdminPage() {
             </tbody>
           </table>
         </div>
+        <MasterPromptForm
+          key={master.updated_at ?? "default"}
+          initial={master.text}
+          custom={master.custom}
+          status={
+            master.custom
+              ? fmt(c.masterCustom, { name: master.updated_by_name ?? "?", date: dateTimeFmt.format(new Date(master.updated_at! * 1000)) })
+              : c.masterDefault
+          }
+        />
       </section>
 
       <div className="grid gap-8 lg:grid-cols-2">

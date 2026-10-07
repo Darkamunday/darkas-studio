@@ -33,12 +33,19 @@ export const DEFAULT_DAILY_CAP = 50;
 /** Longest conversation title, in characters. */
 export const CHAT_TITLE_MAX = 80;
 
+/** Longest master prompt an admin can save, in characters. */
+export const MAX_MASTER_PROMPT_CHARS = 8_000;
+
 /** Longest custom instructions a person can save, in characters. */
 export const MAX_INSTRUCTIONS_CHARS = 1_500;
 
 /** Longest message someone can send, in characters. */
 export const MAX_MESSAGE_CHARS = 20_000;
 
+/**
+ * The default master prompt, sent first with every message. Admins can replace it from the Admin page
+ * (stored in the database); this is used whenever that's empty.
+ */
 export const SYSTEM_PROMPT = `You are a friendly, helpful general assistant inside Darka's Studio.
 Be warm and clear. Keep answers as short as the question allows, and go into detail when asked.
 Use Markdown where it helps (lists, tables, code blocks with a language tag).

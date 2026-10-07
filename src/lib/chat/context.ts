@@ -6,7 +6,7 @@ import { MAX_REPLY_TOKENS } from "@/config/chat";
 // long chats under the model's window without shipping a tokenizer.
 const estimate = (t: ChatTurn) => Math.ceil(t.content.length / 4) + 4;
 
-/** The base prompt from the config, followed by the person's own instructions if they've set any. */
+/** The master prompt (admin-set, or the config default), followed by the person's own instructions if they've set any. */
 export function systemPrompt(base: string, instructions: string | null): string {
   if (!instructions) return base;
   return `${base}

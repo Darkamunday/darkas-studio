@@ -459,6 +459,14 @@ export const en = {
     enableAll: "Enable for all",
     disableAll: "Disable for all",
     disableAllConfirm: "Turn chat off for everyone except admins? Their chats are kept.",
+    masterHeading: "Master prompt",
+    masterBlurb: "Sent first with every message, for everyone, before their own custom instructions. Users never see it. Changes apply from the next message.",
+    masterDefault: "Using the default",
+    masterCustom: "Edited by {name} · {date}",
+    masterSave: "Save",
+    masterReset: "Reset to default",
+    masterResetConfirm: "Go back to the default master prompt? Your edited version will be lost.",
+    masterCount: "{n} / {max}",
   },
 };
 

@@ -8,6 +8,8 @@ import { getI18n } from "@/lib/i18n/server";
 import { SunoError } from "@/lib/suno";
 import { fetchTimedLyrics, getTimingTrack } from "@/lib/timed-lyrics";
 import { canViewTrack } from "@/lib/tracks";
+import { setMasterPrompt } from "@/lib/chat/master-prompt";
+import { MAX_MASTER_PROMPT_CHARS } from "@/config/chat";
 
 // Unambiguous alphabet (no 0/O, 1/I/L).
 const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
@@ -82,6 +84,15 @@ export async function setChatCap(formData: FormData) {
 export async function setChatForAll(formData: FormData) {
   await requireAdmin();
   db.prepare("UPDATE users SET chat_enabled = ? WHERE is_admin = 0").run(formData.get("enabled") === "1" ? 1 : 0);
+  revalidatePath("/admin");
+}
+
+/** The chat master prompt, for everyone. `reset` (or blank) goes back to the default in the config. */
+export async function saveMasterPrompt(formData: FormData) {
+  const admin = await requireAdmin();
+  const text = formData.get("reset") === "1" ? "" : String(formData.get("prompt") ?? "");
+  if (text.length > MAX_MASTER_PROMPT_CHARS) return;
+  setMasterPrompt(text, admin.id);
   revalidatePath("/admin");
 }
 
