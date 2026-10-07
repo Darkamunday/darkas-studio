@@ -67,6 +67,15 @@ Nothing below is in git — **back these up together**, since catalogue rows poi
   in `src/lib/db.ts` run automatically on startup.
 - `$MEDIA_DIR/audio`, `$MEDIA_DIR/covers` — downloaded MP3s and cover art.
 
+**Backups.** A systemd timer (`deploy/music-app-backup.timer`, installed in `/etc/systemd/system/`) runs
+`deploy/backup.mjs` every night at about 03:30. It takes a consistent copy of `app.db` while the app
+runs, checks it, and writes `app-YYYY-MM-DD-HHMM.db.gz` to `$MEDIA_DIR/backups` (a different disk from
+the database), keeping 14 days (`BACKUP_DIR` and `BACKUP_KEEP_DAYS` override). The Admin overview shows
+when the last one ran. Run one now with `systemctl start music-app-backup`; logs:
+`journalctl -u music-app-backup`. To restore: `systemctl stop music-app`, then
+`gunzip -c $MEDIA_DIR/backups/app-….db.gz > data/app.db`, remove `data/app.db-wal` and `data/app.db-shm`,
+and `systemctl start music-app`. Media files aren't included — they're already on the data disk.
+
 Deleting a song moves it to the `deleted_tracks` table (files kept) for 30 days, then it's purged
 with its files. People restore their own deletions from **Recently deleted** (linked from the
 catalogue); songs an admin removes skip the owner's bin and are restored from the Admin page. Songs

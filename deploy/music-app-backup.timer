@@ -1,0 +1,11 @@
+[Unit]
+Description=Back up the Darka's Studio database every night
+
+[Timer]
+OnCalendar=*-*-* 03:30
+RandomizedDelaySec=10min
+# If the machine was off at 03:30, run once it's back.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

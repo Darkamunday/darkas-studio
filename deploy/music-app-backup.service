@@ -1,0 +1,11 @@
+# Nightly database backup for Darka's Studio. Started by music-app-backup.timer.
+# Install: cp deploy/music-app-backup.* /etc/systemd/system/ && systemctl daemon-reload \
+#          && systemctl enable --now music-app-backup.timer
+[Unit]
+Description=Darka's Studio database backup
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/music-app
+ExecStart=/usr/bin/node deploy/backup.mjs
+User=root

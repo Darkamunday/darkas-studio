@@ -7,6 +7,7 @@ import { LOCALE_INFO } from "@/lib/i18n/config";
 import { fmt, lookup } from "@/lib/i18n/format";
 import { CREDITS_PER_GENERATION } from "../credits";
 import { Stat, StatusDot } from "../ui";
+import { backupStatus } from "@/lib/backups";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: (await getI18n()).m.meta.admin };
@@ -35,6 +36,8 @@ export default async function AdminOverviewPage() {
   });
 
   const [credits, totals, recent] = [await fetchCredits(), usageTotals(), recentGenerations()];
+  const backup = backupStatus();
+  const backupStale = backup.stale;
 
   return (
     <div className="flex flex-col gap-8">
@@ -54,6 +57,15 @@ export default async function AdminOverviewPage() {
         <Stat label={a.thisWeek} value={totals.last_7d} sub={a.last7} />
         <Stat label={a.tracks} value={totals.tracks} sub={a.inCatalogue} />
       </section>
+
+      <p className={`-mt-4 flex items-center gap-2 text-xs ${backupStale ? "text-danger" : "text-subtle"}`}>
+        <span aria-hidden className={`h-1.5 w-1.5 rounded-full ${backupStale ? "bg-danger" : "bg-success"}`} />
+        {backup.latest === null
+          ? a.backupNone
+          : backupStale
+            ? a.backupStale
+            : fmt(a.backupOk, { date: dateTimeFmt.format(new Date(backup.latest * 1000)), n: backup.count })}
+      </p>
 
       {/* ---- recent activity ---- */}
       <section className="min-w-0 rounded-3xl border border-line bg-surface shadow-card p-6">
