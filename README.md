@@ -55,6 +55,8 @@ migrations only ever add things, so older code keeps working with a newer databa
 | `SUNO_MOCK` | no | `1` fakes the provider locally (no credits spent) — for development only |
 | `COMFY_CLOUD_API_KEY` | no | Comfy Cloud API key (from platform.comfy.org; needs a plan with API access). Turns on **Change cover**: creators describe a cover and it's generated with Z-Image Turbo. Hidden when unset. |
 | `COMFY_MOCK` | no | `1` fakes Comfy Cloud with placeholder images — for development only |
+| `OLLAMA_API_KEY` | no | Ollama Cloud API key (from ollama.com/settings/keys). Powers **Chat** (`/chat`), which admins switch on per user. Models, system prompt and the default daily cap are in `src/config/chat.ts`. |
+| `OLLAMA_BASE_URL` | no | Default: `https://ollama.com` |
 
 ## Data
 

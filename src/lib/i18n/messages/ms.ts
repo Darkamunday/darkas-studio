@@ -12,6 +12,7 @@ export const ms: Messages = {
     songNotFound: "Lagu tidak dijumpai",
     bin: "Baru dipadam",
     timed: "Lirik bercap masa",
+    chat: "Sembang",
   },
 
   common: {
@@ -35,6 +36,7 @@ export const ms: Messages = {
   nav: {
     create: "Cipta",
     catalogue: "Katalog",
+    chat: "Sembang",
     admin: "Admin",
     logOut: "Log keluar",
     toDark: "Tukar ke mod gelap",
@@ -373,5 +375,28 @@ export const ms: Messages = {
     inviteOnly: "jemputan sahaja",
     goneHeading: "Lagu ini sudah tiada",
     goneText: "Pautan mungkin salah taip, atau penciptanya sudah berhenti berkongsi.",
+  },
+
+  chat: {
+    heading: "Sembang",
+    blurb: "Tanya apa sahaja — sembang anda hanya boleh dilihat oleh anda.",
+    offHeading: "Sembang belum diaktifkan untuk akaun anda",
+    offText: "Minta admin aktifkannya untuk anda, kemudian kembali ke sini.",
+    placeholder: "Hantar mesej kepada pembantu…",
+    send: "Hantar",
+    stop: "Henti",
+    you: "Anda",
+    assistant: "Pembantu",
+    newChat: "Sembang baharu",
+    errors: {
+      not_configured: "Sembang belum disediakan — beritahu admin.",
+      bad_key: "Perkhidmatan sembang menolak kuncinya — beritahu admin.",
+      busy: "Perkhidmatan sembang sedang sibuk — cuba lagi sebentar.",
+      model: "Model itu tidak tersedia sekarang — cuba yang lain.",
+      generic: "Ada masalah — cuba lagi sebentar.",
+      daily_cap: "Anda sudah mencapai had hari ini, iaitu {cap} mesej. Had ditetapkan semula pada tengah malam (waktu UK).",
+      chat_disabled: "Sembang tidak lagi diaktifkan untuk akaun anda.",
+      not_found: "Sembang itu sudah tiada.",
+    },
   },
 };

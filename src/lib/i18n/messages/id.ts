@@ -11,6 +11,7 @@ export const id: Messages = {
     songNotFound: "Lagu tidak ditemukan",
     bin: "Baru dihapus",
     timed: "Lirik bertimestamp",
+    chat: "Chat",
   },
 
   common: {
@@ -34,6 +35,7 @@ export const id: Messages = {
   nav: {
     create: "Buat",
     catalogue: "Katalog",
+    chat: "Chat",
     admin: "Admin",
     logOut: "Keluar",
     toDark: "Ganti ke mode gelap",
@@ -372,5 +374,28 @@ export const id: Messages = {
     inviteOnly: "khusus undangan",
     goneHeading: "Lagu ini sudah pergi",
     goneText: "Tautannya mungkin salah ketik, atau pembuatnya sudah berhenti membagikannya.",
+  },
+
+  chat: {
+    heading: "Chat",
+    blurb: "Tanya apa saja — obrolanmu hanya bisa dilihat olehmu.",
+    offHeading: "Chat belum diaktifkan di akunmu",
+    offText: "Minta admin untuk mengaktifkannya, lalu kembali ke sini.",
+    placeholder: "Kirim pesan ke asisten…",
+    send: "Kirim",
+    stop: "Berhenti",
+    you: "Kamu",
+    assistant: "Asisten",
+    newChat: "Chat baru",
+    errors: {
+      not_configured: "Chat belum disiapkan — kabari admin.",
+      bad_key: "Layanan chat menolak kuncinya — kabari admin.",
+      busy: "Layanan chat sedang sibuk — coba lagi sebentar lagi.",
+      model: "Model itu sedang tidak tersedia — coba yang lain.",
+      generic: "Ada yang tidak beres — coba lagi sebentar lagi.",
+      daily_cap: "Kamu sudah mencapai batas hari ini, yaitu {cap} pesan. Batasnya direset tengah malam (waktu Inggris).",
+      chat_disabled: "Chat sudah tidak aktif di akunmu.",
+      not_found: "Obrolan itu sudah tidak ada.",
+    },
   },
 };

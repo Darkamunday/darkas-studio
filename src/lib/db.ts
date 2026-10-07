@@ -169,6 +169,39 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX cover_jobs_track ON cover_jobs(track_id);
   `,
+  // 9: AI chat (Ollama Cloud). Off per user until an admin enables it; chat_daily_cap NULL means
+  // the default in src/config/chat.ts. chat_usage counts sends per Europe/London day, kept apart
+  // from messages so deleting a chat doesn't hand back allowance.
+  `
+  ALTER TABLE users ADD COLUMN chat_enabled INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE users ADD COLUMN chat_daily_cap INTEGER;
+
+  CREATE TABLE conversations (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title      TEXT,
+    model      TEXT NOT NULL,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+  CREATE INDEX conversations_user ON conversations(user_id, updated_at);
+
+  CREATE TABLE messages (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    role            TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
+    content         TEXT NOT NULL,
+    created_at      INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+  CREATE INDEX messages_conversation ON messages(conversation_id, id);
+
+  CREATE TABLE chat_usage (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    day     TEXT NOT NULL,
+    count   INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, day)
+  );
+  `,
 ];
 
 function open(): DatabaseSync {

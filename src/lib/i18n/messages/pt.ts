@@ -12,6 +12,7 @@ export const pt: Messages = {
     songNotFound: "Música não encontrada",
     bin: "Excluídas recentemente",
     timed: "Letras sincronizadas",
+    chat: "Chat",
   },
 
   common: {
@@ -35,6 +36,7 @@ export const pt: Messages = {
   nav: {
     create: "Criar",
     catalogue: "Catálogo",
+    chat: "Chat",
     admin: "Admin",
     logOut: "Sair",
     toDark: "Mudar para o modo escuro",
@@ -373,5 +375,28 @@ export const pt: Messages = {
     inviteOnly: "só por convite",
     goneHeading: "Esta música saiu de cena",
     goneText: "O link pode estar errado, ou quem criou parou de compartilhar.",
+  },
+
+  chat: {
+    heading: "Chat",
+    blurb: "Pergunte qualquer coisa — suas conversas são só suas.",
+    offHeading: "O chat ainda não está ativado na sua conta",
+    offText: "Peça para o admin ativar para você e volte aqui.",
+    placeholder: "Mande uma mensagem para o assistente…",
+    send: "Enviar",
+    stop: "Parar",
+    you: "Você",
+    assistant: "Assistente",
+    newChat: "Novo chat",
+    errors: {
+      not_configured: "O chat ainda não foi configurado — avise o admin.",
+      bad_key: "O serviço de chat recusou a chave — avise o admin.",
+      busy: "O serviço de chat está ocupado — tente de novo daqui a pouco.",
+      model: "Esse modelo não está disponível agora — tente outro.",
+      generic: "Algo deu errado — tente de novo daqui a pouco.",
+      daily_cap: "Você chegou ao limite de hoje: {cap} mensagens. Ele zera à meia-noite (horário do Reino Unido).",
+      chat_disabled: "O chat não está mais ativado na sua conta.",
+      not_found: "Essa conversa não existe mais.",
+    },
   },
 };

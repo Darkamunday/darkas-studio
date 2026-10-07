@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { requireUser } from "@/lib/auth";
+import { hasChatAccess } from "@/lib/chat/access";
 import { Logo } from "@/components/logo";
 import { NavLinks } from "@/components/nav-links";
 import { SinglePlayback } from "@/components/single-playback";
@@ -12,13 +13,15 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   const user = await requireUser();
   const theme = (await cookies()).get("theme")?.value === "light" ? "light" : "dark";
   const { m } = await getI18n();
+  // Only hides the link; /chat and its API routes check access themselves.
+  const showChat = hasChatAccess(user);
 
   return (
     <div className="flex flex-1 flex-col">
       <header className="sticky top-0 z-30 border-b border-line/70 bg-bg/75 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
           <Logo />
-          <NavLinks isAdmin={!!user.is_admin} className="ml-4 hidden sm:flex" />
+          <NavLinks isAdmin={!!user.is_admin} showChat={showChat} className="ml-4 hidden sm:flex" />
           <div className="ml-auto flex items-center gap-2">
             <LanguagePicker />
             <ThemeToggle initial={theme} />
@@ -41,7 +44,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             </div>
           </div>
         </div>
-        <NavLinks isAdmin={!!user.is_admin} className="mx-auto max-w-6xl px-3 pb-2 sm:hidden" />
+        <NavLinks isAdmin={!!user.is_admin} showChat={showChat} className="mx-auto max-w-6xl px-3 pb-2 sm:hidden" />
       </header>
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:py-10">{children}</main>

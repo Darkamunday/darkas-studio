@@ -1,0 +1,26 @@
+import type { ChatTurn } from "./ollama";
+import type { ChatModel } from "@/config/chat";
+import { MAX_REPLY_TOKENS } from "@/config/chat";
+
+// Rough token estimate (~4 characters each, plus a little per message). Good enough to keep
+// long chats under the model's window without shipping a tokenizer.
+const estimate = (t: ChatTurn) => Math.ceil(t.content.length / 4) + 4;
+
+/**
+ * The system prompt plus as much recent history as fits in the model's window, newest kept first.
+ * The latest message is always sent, even if it alone is over budget.
+ */
+export function buildPrompt(system: string, history: ChatTurn[], model: ChatModel): ChatTurn[] {
+  const sys: ChatTurn = { role: "system", content: system };
+  let budget = model.contextTokens - MAX_REPLY_TOKENS - estimate(sys);
+  const kept: ChatTurn[] = [];
+  for (let i = history.length - 1; i >= 0; i--) {
+    const cost = estimate(history[i]);
+    if (kept.length > 0 && cost > budget) break;
+    kept.unshift(history[i]);
+    budget -= cost;
+  }
+  // Don't open on a dangling assistant turn whose question was trimmed away.
+  while (kept.length > 1 && kept[0].role === "assistant") kept.shift();
+  return [sys, ...kept];
+}

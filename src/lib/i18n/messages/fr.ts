@@ -11,6 +11,7 @@ export const fr: Messages = {
     songNotFound: "Chanson introuvable",
     bin: "Récemment supprimés",
     timed: "Paroles synchronisées",
+    chat: "Chat",
   },
 
   common: {
@@ -34,6 +35,7 @@ export const fr: Messages = {
   nav: {
     create: "Créer",
     catalogue: "Catalogue",
+    chat: "Chat",
     admin: "Admin",
     logOut: "Se déconnecter",
     toDark: "Passer en mode sombre",
@@ -372,5 +374,28 @@ export const fr: Messages = {
     inviteOnly: "sur invitation",
     goneHeading: "Cette chanson a quitté la salle",
     goneText: "Le lien est peut-être mal saisi, ou la personne qui l'a créée a arrêté de le partager.",
+  },
+
+  chat: {
+    heading: "Chat",
+    blurb: "Pose n'importe quelle question — tes conversations ne sont visibles que par toi.",
+    offHeading: "Le chat n'est pas encore activé sur ton compte",
+    offText: "Demande à l'admin de l'activer pour toi, puis reviens ici.",
+    placeholder: "Écris à l'assistant…",
+    send: "Envoyer",
+    stop: "Arrêter",
+    you: "Toi",
+    assistant: "Assistant",
+    newChat: "Nouveau chat",
+    errors: {
+      not_configured: "Le chat n'est pas encore configuré — préviens l'admin.",
+      bad_key: "Le service de chat a refusé sa clé — préviens l'admin.",
+      busy: "Le service de chat est occupé — réessaie dans un instant.",
+      model: "Ce modèle n'est pas disponible pour le moment — essaie-en un autre.",
+      generic: "Un problème est survenu — réessaie dans un instant.",
+      daily_cap: "Tu as atteint la limite du jour : {cap} messages. Elle se réinitialise à minuit (heure du Royaume-Uni).",
+      chat_disabled: "Le chat n'est plus activé sur ton compte.",
+      not_found: "Cette conversation n'existe plus.",
+    },
   },
 };

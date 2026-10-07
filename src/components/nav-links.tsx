@@ -4,12 +4,21 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useI18n } from "@/lib/i18n/client";
 
-export function NavLinks({ isAdmin, className = "" }: { isAdmin: boolean; className?: string }) {
+export function NavLinks({
+  isAdmin,
+  showChat,
+  className = "",
+}: {
+  isAdmin: boolean;
+  showChat: boolean;
+  className?: string;
+}) {
   const pathname = usePathname();
   const { m } = useI18n();
   const links = [
     { href: "/generate", label: m.nav.create },
     { href: "/catalogue", label: m.nav.catalogue },
+    ...(showChat ? [{ href: "/chat", label: m.nav.chat }] : []),
     ...(isAdmin ? [{ href: "/admin", label: m.nav.admin }] : []),
   ];
 

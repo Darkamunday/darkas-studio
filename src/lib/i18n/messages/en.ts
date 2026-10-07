@@ -12,6 +12,7 @@ export const en = {
     songNotFound: "Song not found",
     bin: "Recently deleted",
     timed: "Timestamped lyrics",
+    chat: "Chat",
   },
 
   common: {
@@ -35,6 +36,7 @@ export const en = {
   nav: {
     create: "Create",
     catalogue: "Catalogue",
+    chat: "Chat",
     admin: "Admin",
     logOut: "Log out",
     toDark: "Switch to dark mode",
@@ -375,6 +377,29 @@ export const en = {
     inviteOnly: "invite only",
     goneHeading: "This song has left the building",
     goneText: "The link might be mistyped, or whoever made it has stopped sharing it.",
+  },
+
+  chat: {
+    heading: "Chat",
+    blurb: "Ask anything — your chats are private to you.",
+    offHeading: "Chat isn't enabled on your account yet",
+    offText: "Ask the admin to switch it on for you, then come back here.",
+    placeholder: "Message the assistant…",
+    send: "Send",
+    stop: "Stop",
+    you: "You",
+    assistant: "Assistant",
+    newChat: "New chat",
+    errors: {
+      not_configured: "Chat isn't set up yet — let the admin know.",
+      bad_key: "The chat service rejected its key — let the admin know.",
+      busy: "The chat service is busy — try again in a moment.",
+      model: "That model isn't available right now — try another one.",
+      generic: "Something went wrong — try again in a moment.",
+      daily_cap: "You've reached today's limit of {cap} messages. It resets at midnight (UK time).",
+      chat_disabled: "Chat isn't enabled on your account any more.",
+      not_found: "That chat doesn't exist any more.",
+    },
   },
 };
 
