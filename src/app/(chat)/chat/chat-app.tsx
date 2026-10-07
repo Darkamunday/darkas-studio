@@ -47,6 +47,7 @@ export function ChatApp({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [instructions, setInstructions] = useState(initialInstructions);
   const [instructionsOpen, setInstructionsOpen] = useState(false);
+  const [makingSong, setMakingSong] = useState<number | null>(null);
 
   // Escape closes the phone drawer.
   useEffect(() => {
@@ -149,6 +150,20 @@ export function ChatApp({
     setStick(true);
     const accepted = await chat.send(content, model, think);
     if (!accepted) setDraft((d) => d || content); // refused (e.g. daily limit): give their text back
+  }
+
+  async function makeSong(messageId: number) {
+    setError(null);
+    setMakingSong(messageId);
+    const res = await fetch("/api/chat/song-draft", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messageId }),
+    }).catch(() => null);
+    if (res?.ok) return router.push(`/generate?fromChat=${messageId}`);
+    setMakingSong(null);
+    const reason = ((await res?.json().catch(() => null)) as { error?: string } | null)?.error ?? "song_failed";
+    setError((m.chat.errors as Record<string, string>)[reason] ?? m.chat.errors.song_failed);
   }
 
   function regenerate() {
@@ -293,6 +308,8 @@ export function ChatApp({
                 messages={chat.messages}
                 streaming={chat.streaming}
                 onRegenerate={activeId !== null ? regenerate : undefined}
+                onMakeSong={chat.streaming ? undefined : makeSong}
+                makingSong={makingSong}
               />
             )}
           </div>

@@ -240,6 +240,11 @@ const MIGRATIONS: string[] = [
   ALTER TABLE messages ADD COLUMN thinking TEXT;
   ALTER TABLE messages ADD COLUMN thinking_ms INTEGER;
   `,
+  // 14: "Make it a song" — a reply turned into {title, style, lyrics} for the Create page, kept so
+  // opening it again is instant (and isn't paid for twice).
+  `
+  ALTER TABLE messages ADD COLUMN song_draft TEXT;
+  `,
 ];
 
 function open(): DatabaseSync {

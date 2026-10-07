@@ -113,14 +113,19 @@ export async function* streamChat(opts: {
   }
 }
 
-/** A short, non-streamed reply (used for conversation titles). */
+/**
+ * A non-streamed reply, for behind-the-scenes jobs (titles, song drafts). No reasoning: it keeps them
+ * quick and cheap. `format` is a JSON schema the reply must follow.
+ */
 export async function completeChat(
   model: string,
   messages: ChatTurn[],
-  timeoutMs = 20_000,
+  { timeoutMs = 20_000, format }: { timeoutMs?: number; format?: object } = {},
 ): Promise<{ text: string; usage: TokenUsage | null }> {
-  // Titles don't need reasoning; asking for none keeps them quick and cheap.
-  const res = await post({ model, messages, stream: false, think: false }, AbortSignal.timeout(timeoutMs));
+  const res = await post(
+    { model, messages, stream: false, think: false, ...(format ? { format } : {}) },
+    AbortSignal.timeout(timeoutMs),
+  );
   const body = (await res.json()) as Chunk;
   return { text: body.message?.content ?? "", usage: usageOf(body) };
 }

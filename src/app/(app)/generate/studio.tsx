@@ -24,6 +24,9 @@ export type RemixSourceInfo = {
 };
 type FormProps = { moods: string[]; onCreated: (id: number) => void };
 
+/** Starting values for the advanced form (e.g. a chat reply turned into a song). */
+export type AdvancedDraft = { title: string; style: string; lyrics: string };
+
 const pick = <T,>(list: T[], not?: T) => {
   const options = list.length > 1 ? list.filter((x) => x !== not) : list;
   return options[Math.floor(Math.random() * options.length)];
@@ -36,14 +39,16 @@ export function GenerateStudio({
   defaultModel,
   initialPending,
   remix,
+  draft = null,
 }: {
   moods: string[];
   defaultModel: SunoModel;
   initialPending: number[];
   remix: RemixSourceInfo | null;
+  draft?: AdvancedDraft | null;
 }) {
   const { m } = useI18n();
-  const [mode, setMode] = useState<Mode>("simple");
+  const [mode, setMode] = useState<Mode>(draft ? "advanced" : "simple");
   const [watching, setWatching] = useState<number[]>(initialPending);
 
   const onCreated = (id: number) => setWatching((w) => (w.includes(id) ? w : [id, ...w]));
@@ -96,7 +101,7 @@ export function GenerateStudio({
         <SimpleForm moods={moods} onCreated={onCreated} />
       </div>
       <div hidden={mode !== "advanced"}>
-        <AdvancedForm moods={moods} onCreated={onCreated} defaultModel={defaultModel} />
+        <AdvancedForm moods={moods} onCreated={onCreated} defaultModel={defaultModel} draft={draft} />
       </div>
 
       {inStudio}
@@ -157,11 +162,16 @@ function SimpleForm({ moods, onCreated }: FormProps) {
 
 const SECTION_TAGS = ["Intro", "Verse", "Pre-Chorus", "Chorus", "Bridge", "Outro"];
 
-function AdvancedForm({ moods, onCreated, defaultModel }: FormProps & { defaultModel: SunoModel }) {
+function AdvancedForm({
+  moods,
+  onCreated,
+  defaultModel,
+  draft,
+}: FormProps & { defaultModel: SunoModel; draft: AdvancedDraft | null }) {
   const { m } = useI18n();
-  const [title, setTitle] = useState("");
-  const [lyrics, setLyrics] = useState("");
-  const [style, setStyle] = useState("");
+  const [title, setTitle] = useState(draft?.title ?? "");
+  const [lyrics, setLyrics] = useState(draft?.lyrics ?? "");
+  const [style, setStyle] = useState(draft?.style ?? "");
   const [model, setModel] = useState<SunoModel>(defaultModel);
   const [mood, setMood] = useState<string | null>(null);
   const [instrumental, setInstrumental] = useState(false);

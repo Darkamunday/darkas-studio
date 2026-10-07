@@ -11,9 +11,15 @@ export function MessageList({
   messages,
   streaming,
   onRegenerate,
+  onMakeSong,
+  makingSong,
 }: {
   messages: UiMessage[];
   streaming: boolean;
+  /** Turn a saved reply into a song on the Create page. */
+  onMakeSong?: (messageId: number) => void;
+  /** The reply currently being turned into a song, if any. */
+  makingSong?: number | null;
   /** Re-answer the last message; absent when there's no saved chat to regenerate in. */
   onRegenerate?: () => void;
 }) {
@@ -35,6 +41,8 @@ export function MessageList({
               thinkingMs={msg.thinkingMs}
               live={streaming && i === last}
               onRegenerate={!streaming && i === last ? onRegenerate : undefined}
+              onMakeSong={msg.id !== null && onMakeSong ? () => onMakeSong(msg.id!) : undefined}
+              makingSong={makingSong != null && makingSong === msg.id}
             />
           )}
         </li>
@@ -70,12 +78,16 @@ function AssistantMessage({
   thinkingMs,
   live,
   onRegenerate,
+  onMakeSong,
+  makingSong,
 }: {
   content: string;
   thinking?: string;
   thinkingMs?: number | null;
   live: boolean;
   onRegenerate?: () => void;
+  onMakeSong?: () => void;
+  makingSong?: boolean;
 }) {
   const { m } = useI18n();
   return (
@@ -104,6 +116,21 @@ function AssistantMessage({
               <ActionButton onClick={onRegenerate} label={m.chat.regenerate}>
                 <RegenerateIcon />
               </ActionButton>
+            )}
+            {onMakeSong && (
+              <button
+                type="button"
+                onClick={onMakeSong}
+                disabled={makingSong}
+                className="ml-1 inline-flex h-7 items-center gap-1.5 rounded-lg border border-line px-2.5 text-xs text-muted transition hover:border-pink/50 hover:text-accent-fg disabled:cursor-wait disabled:opacity-80"
+              >
+                <svg aria-hidden viewBox="0 0 24 24" className={`h-3.5 w-3.5 ${makingSong ? "animate-pulse text-pink" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 18V5l12-2v13" />
+                  <circle cx="6" cy="18" r="3" />
+                  <circle cx="18" cy="16" r="3" />
+                </svg>
+                {makingSong ? m.chat.makingSong : m.chat.makeSong}
+              </button>
             )}
           </div>
         )}
