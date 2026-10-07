@@ -1,9 +1,20 @@
 "use client";
 
 import { useI18n } from "@/lib/i18n/client";
-import { CHAT_MODELS } from "@/config/chat";
+import { modelsFor } from "@/config/chat";
 
-export function ModelPicker({ value, onChange, disabled }: { value: string; onChange: (id: string) => void; disabled?: boolean }) {
+/** Admins also see the admin-only (pricier) models, marked as such. */
+export function ModelPicker({
+  value,
+  onChange,
+  disabled,
+  isAdmin,
+}: {
+  value: string;
+  onChange: (id: string) => void;
+  disabled?: boolean;
+  isAdmin: boolean;
+}) {
   const { m } = useI18n();
   return (
     <label className="relative flex items-center">
@@ -15,9 +26,9 @@ export function ModelPicker({ value, onChange, disabled }: { value: string; onCh
         title={m.chat.model}
         className="cursor-pointer appearance-none rounded-xl border border-line bg-surface py-1.5 pl-3 pr-8 text-sm text-fg transition hover:border-line-strong focus:border-pink focus:outline-none focus:ring-4 focus:ring-pink/15 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {CHAT_MODELS.map((model) => (
+        {modelsFor(isAdmin).map((model) => (
           <option key={model.id} value={model.id}>
-            {model.label}
+            {model.adminOnly ? `${model.label} · ${m.chat.adminOnlyModel}` : model.label}
           </option>
         ))}
       </select>

@@ -41,14 +41,32 @@ async function post(body: object, signal?: AbortSignal): Promise<Response> {
   throw new OllamaError("generic", `HTTP ${res.status}`);
 }
 
-type Chunk = { message?: { content?: string }; done?: boolean; error?: string };
+type Chunk = {
+  message?: { content?: string };
+  done?: boolean;
+  error?: string;
+  /** Tokens read and written, reported on the final chunk (written includes any reasoning). */
+  prompt_eval_count?: number;
+  eval_count?: number;
+};
 
-/** Stream a reply, yielding text as it arrives. Aborting `signal` stops the upstream request. */
+export type TokenUsage = { input: number; output: number };
+
+const usageOf = (c: Chunk): TokenUsage | null =>
+  c.prompt_eval_count !== undefined || c.eval_count !== undefined
+    ? { input: c.prompt_eval_count ?? 0, output: c.eval_count ?? 0 }
+    : null;
+
+/**
+ * Stream a reply, yielding text as it arrives. Aborting `signal` stops the upstream request.
+ * `onUsage` gets the token counts when the reply finishes (not called if it's cut short).
+ */
 export async function* streamChat(opts: {
   model: string;
   messages: ChatTurn[];
   numCtx: number;
   signal?: AbortSignal;
+  onUsage?: (usage: TokenUsage) => void;
 }): AsyncGenerator<string> {
   const res = await post(
     { model: opts.model, messages: opts.messages, stream: true, options: { num_ctx: opts.numCtx } },
@@ -75,14 +93,22 @@ export async function* streamChat(opts: {
       }
       // Reasoning models also send message.thinking; it isn't shown, so it's skipped.
       if (chunk.message?.content) yield chunk.message.content;
-      if (chunk.done) return;
+      if (chunk.done) {
+        const usage = usageOf(chunk);
+        if (usage) opts.onUsage?.(usage);
+        return;
+      }
     }
   }
 }
 
 /** A short, non-streamed reply (used for conversation titles). */
-export async function completeChat(model: string, messages: ChatTurn[], timeoutMs = 20_000): Promise<string> {
+export async function completeChat(
+  model: string,
+  messages: ChatTurn[],
+  timeoutMs = 20_000,
+): Promise<{ text: string; usage: TokenUsage | null }> {
   const res = await post({ model, messages, stream: false }, AbortSignal.timeout(timeoutMs));
   const body = (await res.json()) as Chunk;
-  return body.message?.content ?? "";
+  return { text: body.message?.content ?? "", usage: usageOf(body) };
 }

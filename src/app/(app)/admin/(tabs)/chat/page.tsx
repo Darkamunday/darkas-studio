@@ -2,14 +2,15 @@ import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/auth";
 import { getMasterPrompt } from "@/lib/chat/master-prompt";
 import { chatUsageByUser, chatUsageTotals } from "@/lib/chat/usage";
-import { DEFAULT_DAILY_CAP } from "@/config/chat";
+import { DEFAULT_DAILY_CAP, findChatModel } from "@/config/chat";
+import { spendByModel, spendByUser, spendTotals } from "@/lib/chat/spend";
 import { getI18n } from "@/lib/i18n/server";
 import { LOCALE_INFO } from "@/lib/i18n/config";
-import { fmt } from "@/lib/i18n/format";
+import { fmt, plural } from "@/lib/i18n/format";
 import { setChatCap, setChatEnabled, setChatForAll } from "../../actions";
 import { ConfirmButton } from "../../confirm-button";
 import { MasterPromptForm } from "../../master-prompt-form";
-import { Badge, SmallButton } from "../../ui";
+import { Badge, SmallButton, Stat } from "../../ui";
 
 export async function generateMetadata(): Promise<Metadata> {
   const { m } = await getI18n();
@@ -33,9 +34,72 @@ export default async function AdminChatPage() {
   const chatUsers = chatUsageByUser();
   const chatTotals = chatUsageTotals();
   const master = getMasterPrompt();
+  const spend = spendTotals();
+  const byModel = spendByModel();
+  const byUser = spendByUser();
+  const num = new Intl.NumberFormat(tag);
+  // Cents for real amounts; more places for the tiny ones, so a few messages don't read as $0.00.
+  const usd = (v: number) =>
+    new Intl.NumberFormat(tag, {
+      style: "currency",
+      currency: "USD",
+      currencyDisplay: "narrowSymbol",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: v > 0 && v < 0.1 ? 4 : 2,
+    }).format(v);
 
   return (
     <div className="flex flex-col gap-8">
+      {/* ---- spend ---- */}
+      <section className="flex flex-col gap-4">
+        <div className="grid grid-cols-3 gap-3">
+          <Stat label={c.spendToday} value={usd(spend.today)} sub={c.spendHeading} />
+          <Stat label={c.spendMonth} value={usd(spend.month)} sub={c.spendHeading} accent />
+          <Stat label={c.spendAll} value={usd(spend.all)} sub={c.spendHeading} />
+        </div>
+        <div className="rounded-3xl border border-line bg-surface shadow-card p-6">
+          <h2 className="text-lg font-semibold">{c.spendHeading} · {c.spendMonth}</h2>
+          <p className="mt-1 text-sm text-muted">{c.spendBlurb}</p>
+          {byModel.length === 0 ? (
+            <p className="mt-4 text-sm text-muted">{c.noSpend}</p>
+          ) : (
+            <div className="-mx-6 mt-4 overflow-x-auto px-6">
+              <table className="w-full min-w-[560px] text-left text-sm">
+                <thead className="whitespace-nowrap text-xs uppercase tracking-wide text-subtle">
+                  <tr>
+                    <th className="py-2 pr-4 font-medium">{c.colModel}</th>
+                    <th className="py-2 pr-4 text-right font-medium">{c.colRequests}</th>
+                    <th className="py-2 pr-4 text-right font-medium">{c.colTokensIn}</th>
+                    <th className="py-2 pr-4 text-right font-medium">{c.colTokensOut}</th>
+                    <th className="py-2 text-right font-medium">{c.colCost}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line">
+                  {byModel.map((row) => {
+                    const model = findChatModel(row.model);
+                    return (
+                      <tr key={row.model}>
+                        <td className="py-2.5 pr-4">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="whitespace-nowrap font-medium">{model?.label ?? row.model}</span>
+                            {model?.adminOnly ? <Badge tone="violet">{m.chat.adminOnlyModel}</Badge> : null}
+                          </div>
+                        </td>
+                        <td className="py-2.5 pr-4 text-right tabular-nums">{num.format(row.requests)}</td>
+                        <td className="py-2.5 pr-4 text-right tabular-nums">{num.format(row.input_tokens)}</td>
+                        <td className="py-2.5 pr-4 text-right tabular-nums">{num.format(row.output_tokens)}</td>
+                        <td className="py-2.5 text-right font-medium tabular-nums">{usd(row.cost_usd)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {spend.estimated > 0 && <p className="mt-3 text-xs text-subtle">{plural(locale, c.estimatedNote, spend.estimated)}</p>}
+        </div>
+      </section>
+
       {/* ---- chat access ---- */}
       <section className="rounded-3xl border border-line bg-surface shadow-card p-6">
         <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
@@ -61,7 +125,7 @@ export default async function AdminChatPage() {
           {fmt(c.totals, { today: chatTotals.today, week: chatTotals.week })}
         </p>
         <div className="-mx-6 mt-4 overflow-x-auto px-6">
-          <table className="w-full min-w-[720px] text-left text-sm">
+          <table className="w-full min-w-[800px] text-left text-sm">
             <thead className="whitespace-nowrap text-xs uppercase tracking-wide text-subtle">
               <tr>
                 <th className="py-2 pr-4 font-medium">{a.colUser}</th>
@@ -70,7 +134,8 @@ export default async function AdminChatPage() {
                 <th className="py-2 pr-4 text-right font-medium">{c.colToday}</th>
                 <th className="py-2 pr-4 text-right font-medium">{c.colWeek}</th>
                 <th className="py-2 pr-4 text-right font-medium">{c.colTotal}</th>
-                <th className="py-2 text-right font-medium">{c.colChats}</th>
+                <th className="py-2 pr-4 text-right font-medium">{c.colChats}</th>
+                <th className="py-2 text-right font-medium">{c.colMonthCost}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -141,7 +206,8 @@ export default async function AdminChatPage() {
                     </td>
                     <td className="py-2.5 pr-4 text-right tabular-nums">{u.week}</td>
                     <td className="py-2.5 pr-4 text-right tabular-nums">{u.total}</td>
-                    <td className="py-2.5 text-right tabular-nums">{u.chats}</td>
+                    <td className="py-2.5 pr-4 text-right tabular-nums">{u.chats}</td>
+                    <td className="py-2.5 text-right tabular-nums">{usd(byUser.get(u.id) ?? 0)}</td>
                   </tr>
                 );
               })}

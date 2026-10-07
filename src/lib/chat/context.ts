@@ -6,6 +6,9 @@ import { MAX_REPLY_TOKENS } from "@/config/chat";
 // long chats under the model's window without shipping a tokenizer.
 const estimate = (t: ChatTurn) => Math.ceil(t.content.length / 4) + 4;
 
+/** Rough token count for some text or turns (for when the provider doesn't report one). */
+export const estimateTokens = (turns: ChatTurn[]) => turns.reduce((n, t) => n + estimate(t), 0);
+
 /** The master prompt (admin-set, or the config default), followed by the person's own instructions if they've set any. */
 export function systemPrompt(base: string, instructions: string | null): string {
   if (!instructions) return base;

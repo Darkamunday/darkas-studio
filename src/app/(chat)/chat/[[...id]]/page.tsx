@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { capFor, hasChatAccess, sentToday } from "@/lib/chat/access";
 import { cookies } from "next/headers";
-import { CHAT_MODEL_COOKIE, DEFAULT_MODEL, findChatModel } from "@/config/chat";
+import { CHAT_MODEL_COOKIE, DEFAULT_MODEL, allowedModel } from "@/config/chat";
 import { getConversation, getInstructions, listConversations, listMessages } from "@/lib/chat/store";
 import { getI18n } from "@/lib/i18n/server";
 import { card } from "@/components/ui";
@@ -34,14 +34,15 @@ export default async function ChatPage({ params }: PageProps<"/chat/[[...id]]">)
 
   const segments = (await params).id;
   let id: number | null = null;
-  // New chats start on the model this browser picked last, if it's still offered.
-  let model = findChatModel((await cookies()).get(CHAT_MODEL_COOKIE)?.value)?.id ?? DEFAULT_MODEL;
+  const isAdmin = !!user.is_admin;
+  // New chats start on the model this browser picked last, if it's still offered to this person.
+  let model = allowedModel((await cookies()).get(CHAT_MODEL_COOKIE)?.value, isAdmin)?.id ?? DEFAULT_MODEL;
   if (segments) {
     id = Number(segments[0]);
     const conversation = segments.length === 1 && Number.isInteger(id) ? getConversation(user.id, id) : undefined;
     if (!conversation) redirect("/chat");
-    // A model since removed from the config shows (and is answered by) the default.
-    model = findChatModel(conversation.model)?.id ?? DEFAULT_MODEL;
+    // A model since removed from the config, or now admin-only, shows (and is answered by) the default.
+    model = allowedModel(conversation.model, isAdmin)?.id ?? DEFAULT_MODEL;
   }
 
   const conversations = listConversations(user.id).map(({ id, title, updated_at }) => ({ id, title, updated_at }));
@@ -60,7 +61,7 @@ export default async function ChatPage({ params }: PageProps<"/chat/[[...id]]">)
       initialModel={model}
       initialUsage={{ sent: sentToday(user.id), cap: capFor(user.id) }}
       initialInstructions={getInstructions(user.id) ?? ""}
-      isAdmin={!!user.is_admin}
+      isAdmin={isAdmin}
     />
   );
 }

@@ -217,6 +217,23 @@ const MIGRATIONS: string[] = [
     updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL
   );
   `,
+  // 12: what chat costs. One row per person, Europe/London day and model, adding up tokens and dollars
+  // (priced when each reply is made). Kept apart from messages so deleting chats doesn't erase spend.
+  // `estimated` counts requests whose tokens were guessed because the reply was stopped or failed.
+  `
+  CREATE TABLE chat_spend (
+    user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    day           TEXT NOT NULL,
+    model         TEXT NOT NULL,
+    requests      INTEGER NOT NULL DEFAULT 0,
+    input_tokens  INTEGER NOT NULL DEFAULT 0,
+    output_tokens INTEGER NOT NULL DEFAULT 0,
+    cost_usd      REAL NOT NULL DEFAULT 0,
+    estimated     INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, day, model)
+  );
+  CREATE INDEX chat_spend_day ON chat_spend(day);
+  `,
 ];
 
 function open(): DatabaseSync {

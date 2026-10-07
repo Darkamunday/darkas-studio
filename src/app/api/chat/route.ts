@@ -12,11 +12,12 @@ import {
   renameConversation,
   setConversationModel,
 } from "@/lib/chat/store";
-import { buildPrompt, systemPrompt } from "@/lib/chat/context";
+import { buildPrompt, estimateTokens, systemPrompt } from "@/lib/chat/context";
+import { recordSpend } from "@/lib/chat/spend";
 import { getMasterPrompt } from "@/lib/chat/master-prompt";
 import type { ChatEvent } from "@/lib/chat/events";
-import { OllamaError, completeChat, streamChat, type ChatTurn } from "@/lib/chat/ollama";
-import { CHAT_MODELS, DEFAULT_MODEL, MAX_MESSAGE_CHARS, findChatModel } from "@/config/chat";
+import { OllamaError, completeChat, streamChat, type ChatTurn, type TokenUsage } from "@/lib/chat/ollama";
+import { CHAT_MODELS, DEFAULT_MODEL, MAX_MESSAGE_CHARS, allowedModel, findChatModel } from "@/config/chat";
 
 export const dynamic = "force-dynamic";
 
@@ -40,15 +41,16 @@ function fallbackTitle(text: string) {
   return oneLine.length > TITLE_MAX ? `${oneLine.slice(0, TITLE_MAX - 1).trimEnd()}…` : oneLine;
 }
 
-async function makeTitle(model: string, firstMessage: string): Promise<string> {
+async function makeTitle(userId: number, model: string, firstMessage: string): Promise<string> {
   try {
-    const raw = await completeChat(model, [
+    const { text: raw, usage } = await completeChat(model, [
       {
         role: "system",
         content: "Write a short title (2–6 words) for a chat that starts with the user's message below. Reply with the title only — no quotes, no full stop.",
       },
       { role: "user", content: firstMessage.slice(0, 2000) },
     ]);
+    if (usage) recordSpend(userId, model, usage);
     const title = raw.replace(/<think>[\s\S]*?<\/think>/g, "").replace(/^["'“”#*\s]+|["'“”.*\s]+$/g, "").split("\n")[0];
     if (title) return fallbackTitle(title);
   } catch (err) {
@@ -72,7 +74,8 @@ export async function POST(req: NextRequest) {
   let conversation = body.conversationId ? getConversation(user.id, body.conversationId) : undefined;
   if (body.conversationId && !conversation) return Response.json({ error: "not_found" }, { status: 404 });
 
-  const requestedModel = findChatModel(body.model);
+  const isAdmin = !!user.is_admin;
+  const requestedModel = allowedModel(body.model, isAdmin);
   if (body.model && !requestedModel) return Response.json({ error: "bad_model" }, { status: 400 });
 
   // Save the user's side first, so it's kept even if the model never answers.
@@ -92,8 +95,8 @@ export async function POST(req: NextRequest) {
   const history = listMessages(user.id, conversationId).map<ChatTurn>((m) => ({ role: m.role, content: m.content }));
   if (history.at(-1)?.role !== "user") return Response.json({ error: "nothing_to_answer" }, { status: 400 });
 
-  // A model removed from the config since the chat started falls back to the default.
-  const model = findChatModel(conversation.model) ?? findChatModel(DEFAULT_MODEL) ?? CHAT_MODELS[0];
+  // A model removed from the config since the chat started, or now admin-only, falls back to the default.
+  const model = allowedModel(conversation.model, isAdmin) ?? findChatModel(DEFAULT_MODEL) ?? CHAT_MODELS[0];
   const prompt = buildPrompt(systemPrompt(getMasterPrompt().text, getInstructions(user.id)), history, model);
   const needsTitle = !conversation.title;
   const firstUserMessage = history.find((m) => m.role === "user")!.content;
@@ -115,8 +118,15 @@ export async function POST(req: NextRequest) {
 
       let reply = "";
       let messageId: number | null = null;
+      let usage: TokenUsage | null = null;
       try {
-        for await (const text of streamChat({ model: model.id, messages: prompt, numCtx: model.contextTokens, signal: req.signal })) {
+        for await (const text of streamChat({
+          model: model.id,
+          messages: prompt,
+          numCtx: model.contextTokens,
+          signal: req.signal,
+          onUsage: (u) => (usage = u),
+        })) {
           reply += text;
           send({ type: "delta", text });
         }
@@ -128,11 +138,16 @@ export async function POST(req: NextRequest) {
       } finally {
         // Keep whatever arrived — the whole reply, or the part before Stop or an error.
         if (reply.trim()) messageId = addMessage(conversationId, "assistant", reply);
+        // Count what it cost. A reply cut short never reports its tokens, so those are estimated.
+        if (usage) recordSpend(user.id, model.id, usage);
+        else if (reply || req.signal.aborted) {
+          recordSpend(user.id, model.id, { input: estimateTokens(prompt), output: Math.ceil(reply.length / 4) }, true);
+        }
       }
       send({ type: "done", messageId });
 
       if (needsTitle) {
-        const title = req.signal.aborted ? fallbackTitle(firstUserMessage) : await makeTitle(model.id, firstUserMessage);
+        const title = req.signal.aborted ? fallbackTitle(firstUserMessage) : await makeTitle(user.id, model.id, firstUserMessage);
         renameConversation(user.id, conversationId, title);
         send({ type: "title", title });
       }

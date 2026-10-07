@@ -250,7 +250,7 @@ export function ChatApp({
             </svg>
           </button>
           <h1 className="min-w-0 flex-1 truncate text-sm font-medium text-muted">{activeTitle}</h1>
-          <ModelPicker value={model} onChange={pickModel} disabled={chat.streaming} />
+          <ModelPicker value={model} onChange={pickModel} disabled={chat.streaming} isAdmin={isAdmin} />
         </div>
 
         <div className="relative flex min-h-0 flex-1 flex-col">

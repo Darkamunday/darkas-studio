@@ -8,17 +8,26 @@ export type ChatModel = {
   label: string;
   /** How much conversation (in tokens) to send; older messages are dropped to fit. */
   contextTokens: number;
+  /**
+   * Ollama Cloud's price in US dollars per million tokens, used for the spend figures on the admin
+   * page. Each reply's cost is worked out when it's made, so changing these doesn't rewrite history.
+   */
+  price: { input: number; output: number };
+  /** Only admins can pick it (for the pricier models). */
+  adminOnly?: boolean;
 };
 
+// Prices from Ollama Cloud's price list (Oct 2026), standard rate — off-peak discounts aren't applied,
+// so spend figures err on the high side.
 export const CHAT_MODELS: ChatModel[] = [
-  { id: "deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash", contextTokens: 64_000 },
-  { id: "glm-5.3", label: "GLM 5.3", contextTokens: 64_000 },
-  { id: "kimi-k3", label: "Kimi K3", contextTokens: 64_000 },
-  { id: "gemma4:31b", label: "Gemma 4 31B", contextTokens: 32_000 },
-  { id: "mistral-large-3:675b", label: "Mistral Large 3", contextTokens: 32_000 },
+  { id: "deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash", contextTokens: 64_000, price: { input: 0.3, output: 1.2 } },
+  { id: "gemma4:31b", label: "Gemma 4 31B", contextTokens: 32_000, price: { input: 0.14, output: 0.4 } },
+  { id: "mistral-large-3:675b", label: "Mistral Large 3", contextTokens: 32_000, price: { input: 0.5, output: 1.5 } },
+  { id: "glm-5.3", label: "GLM 5.3", contextTokens: 64_000, price: { input: 1.4, output: 4.4 }, adminOnly: true },
+  { id: "kimi-k3", label: "Kimi K3", contextTokens: 64_000, price: { input: 3, output: 15 }, adminOnly: true },
 ];
 
-/** Used for new chats; must be one of the ids above. */
+/** Used for new chats; must be one of the ids above, and not an admin-only one. */
 export const DEFAULT_MODEL = "deepseek-v4.1-flash";
 
 /** Remembers the model a browser picked last, so new chats start on it. */
@@ -53,4 +62,20 @@ If you're not sure about something, say so rather than guessing.`;
 
 export function findChatModel(id: unknown): ChatModel | undefined {
   return CHAT_MODELS.find((m) => m.id === id);
+}
+
+/** The models this person may pick. */
+export function modelsFor(isAdmin: boolean): ChatModel[] {
+  return CHAT_MODELS.filter((m) => isAdmin || !m.adminOnly);
+}
+
+/** A model this person may use, or undefined (unknown, or admin-only for a non-admin). */
+export function allowedModel(id: unknown, isAdmin: boolean): ChatModel | undefined {
+  const model = findChatModel(id);
+  return model && (isAdmin || !model.adminOnly) ? model : undefined;
+}
+
+/** Cost in US dollars of a request with these token counts. */
+export function costOf(model: ChatModel, inputTokens: number, outputTokens: number): number {
+  return (inputTokens * model.price.input + outputTokens * model.price.output) / 1_000_000;
 }
