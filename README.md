@@ -5,7 +5,8 @@ A private, invite-only web app for making AI music with friends. Songs are gener
 
 **Features:** simple & advanced generation (own lyrics + style), two takes per song, a shared
 catalogue with filters and a waveform player, remixes (re-record a song in a new style), public
-share links, invite-code sign-up, per-user usage tracking, and an admin page.
+share links, invite-code sign-up, per-user usage tracking, an AI chat (Ollama Cloud; admins switch it
+on per person and set daily limits), and an admin page.
 
 ## Stack
 

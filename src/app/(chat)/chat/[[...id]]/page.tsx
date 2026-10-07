@@ -59,6 +59,7 @@ export default async function ChatPage({ params }: PageProps<"/chat/[[...id]]">)
       initialMessages={messages}
       initialModel={model}
       initialUsage={{ sent: sentToday(user.id), cap: capFor(user.id) }}
+      isAdmin={!!user.is_admin}
     />
   );
 }

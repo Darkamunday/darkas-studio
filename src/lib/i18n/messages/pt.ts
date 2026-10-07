@@ -408,6 +408,13 @@ export const pt: Messages = {
     model: "Modelo",
     left: { one: "Resta {n} mensagem hoje", other: "Restam {n} mensagens hoje" },
     capReached: "Você usou todas as {cap} mensagens de hoje. Mais à meia-noite (horário do Reino Unido).",
+    suggestions: ["Me ajude a escrever um refrão sobre noites de verão", "Me dê 10 ideias de nome de banda", "Explique teoria musical como se eu tivesse cinco anos", "Monte uma playlist de 1 hora para viagem"],
+    groupToday: "Hoje",
+    groupYesterday: "Ontem",
+    groupWeek: "Últimos 7 dias",
+    groupOlder: "Mais antigos",
+    jumpToLatest: "Ir para o mais recente",
+    menu: "Menu",
     errors: {
       not_configured: "O chat ainda não foi configurado — avise o admin.",
       bad_key: "O serviço de chat recusou a chave — avise o admin.",

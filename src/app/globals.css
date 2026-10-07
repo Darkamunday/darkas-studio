@@ -75,6 +75,8 @@
   --animate-float: float 14s ease-in-out infinite;
   --animate-shimmer: shimmer 1.8s linear infinite;
   --animate-pop: pop 0.25s ease-out;
+  --animate-drawer-in: drawer-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-fade-in: fade-in 0.2s ease-out;
 }
 
 @keyframes eq {
@@ -88,6 +90,14 @@
 @keyframes shimmer {
   from { background-position: -200% 0; }
   to { background-position: 200% 0; }
+}
+@keyframes drawer-in {
+  from { transform: translateX(-100%); }
+  to { transform: none; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 @keyframes pop {
   from { opacity: 0; transform: translateY(4px) scale(0.98); }

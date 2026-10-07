@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useI18n } from "@/lib/i18n/client";
 import { fmt, plural } from "@/lib/i18n/format";
@@ -17,6 +17,7 @@ export function ChatApp({
   initialMessages,
   initialModel,
   initialUsage,
+  isAdmin,
 }: {
   initialConversations: SidebarConversation[];
   initialId: number | null;
@@ -24,6 +25,7 @@ export function ChatApp({
   initialModel: string;
   /** Sends today and the daily cap (null = no cap). */
   initialUsage: { sent: number; cap: number | null };
+  isAdmin: boolean;
 }) {
   const { locale, m } = useI18n();
   const router = useRouter();
@@ -34,6 +36,15 @@ export function ChatApp({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [model, setModel] = useState(initialModel);
   const [usage, setUsage] = useState(initialUsage);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Escape closes the phone drawer.
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setDrawerOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [drawerOpen]);
 
   function pickModel(id: string) {
     setModel(id);
@@ -77,13 +88,19 @@ export function ChatApp({
   // ---- auto-scroll: follow the reply only while the reader is at the bottom ----
   const scrollRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
+  // Mirrors `stick` for rendering the "jump to latest" button; only set from event handlers.
+  const [pinned, setPinned] = useState(true);
+  const setStick = (value: boolean) => {
+    stick.current = value;
+    setPinned(value);
+  };
   const lastTop = useRef(0);
   // Scrolling up lets go straight away (our own auto-scroll only ever moves down, so a move up
   // is the reader); getting back near the bottom picks the reply up again.
   const onScroll = () => {
     const el = scrollRef.current!;
-    if (el.scrollTop < lastTop.current - 2) stick.current = false;
-    else if (el.scrollHeight - el.scrollTop - el.clientHeight < 80) stick.current = true;
+    if (el.scrollTop < lastTop.current - 2) setStick(false);
+    else if (el.scrollHeight - el.scrollTop - el.clientHeight < 80) setStick(true);
     lastTop.current = el.scrollTop;
   };
   // A wheel or swipe up shows intent before the scroll event lands, so a reply chunk arriving in
@@ -91,13 +108,13 @@ export function ChatApp({
   const touchY = useRef(0);
   const letGo = {
     onWheel: (e: React.WheelEvent) => {
-      if (e.deltaY < 0) stick.current = false;
+      if (e.deltaY < 0) setStick(false);
     },
     onTouchStart: (e: React.TouchEvent) => {
       touchY.current = e.touches[0].clientY;
     },
     onTouchMove: (e: React.TouchEvent) => {
-      if (e.touches[0].clientY > touchY.current + 4) stick.current = false; // finger down = content up
+      if (e.touches[0].clientY > touchY.current + 4) setStick(false); // finger down = content up
     },
   };
   useLayoutEffect(() => {
@@ -113,15 +130,27 @@ export function ChatApp({
     if (!content) return;
     setError(null);
     setDraft("");
-    stick.current = true;
+    setStick(true);
     const accepted = await chat.send(content, model);
     if (!accepted) setDraft((d) => d || content); // refused (e.g. daily limit): give their text back
   }
 
   function regenerate() {
     setError(null);
-    stick.current = true;
+    setStick(true);
     void chat.regenerate(model);
+  }
+
+  function jumpToLatest() {
+    const el = scrollRef.current;
+    if (!el) return;
+    setStick(true);
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }
+
+  function pickSuggestion(text: string) {
+    setDraft(text);
+    inputRef.current?.focus();
   }
 
   function startNew() {
@@ -129,6 +158,7 @@ export function ChatApp({
     setDrawerOpen(false);
     setError(null);
     setDraft("");
+    setStick(true);
     chat.setMessages([]);
     setActiveId(null);
     router.push("/chat");
@@ -160,30 +190,33 @@ export function ChatApp({
         : plural(locale, m.chat.left, left);
 
   const activeTitle = conversations.find((c) => c.id === activeId)?.title ?? m.chat.untitled;
-  const sidebar = (
-    <Sidebar
-      conversations={conversations}
-      activeId={activeId}
-      onNew={startNew}
-      onNavigate={() => setDrawerOpen(false)}
-      onRename={rename}
-      onDelete={remove}
-    />
-  );
+  const sidebarProps = {
+    conversations,
+    activeId,
+    onNew: startNew,
+    onNavigate: () => setDrawerOpen(false),
+    onRename: rename,
+    onDelete: remove,
+    isAdmin,
+  };
 
   return (
     <div className="flex min-h-0 w-full flex-1">
       {/* Sidebar: fixed column on wider screens, a drawer on phones. */}
-      <aside className="hidden w-72 flex-none border-r border-line/70 bg-surface/40 md:block">{sidebar}</aside>
+      <aside className="hidden w-72 flex-none border-r border-line/70 bg-surface/40 md:block">
+        <Sidebar {...sidebarProps} />
+      </aside>
       {drawerOpen && (
         <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true" aria-label={m.chat.chats}>
           <button
             type="button"
             aria-label={m.chat.closeChats}
             onClick={() => setDrawerOpen(false)}
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            className="absolute inset-0 animate-fade-in bg-black/50 backdrop-blur-sm"
           />
-          <div className="absolute inset-y-0 left-0 w-[85%] max-w-80 border-r border-line bg-bg shadow-card">{sidebar}</div>
+          <div className="absolute inset-y-0 left-0 w-[85%] max-w-80 animate-drawer-in border-r border-line bg-bg shadow-card">
+            <Sidebar {...sidebarProps} onClose={() => setDrawerOpen(false)} />
+          </div>
         </div>
       )}
 
@@ -203,15 +236,32 @@ export function ChatApp({
           <ModelPicker value={model} onChange={pickModel} disabled={chat.streaming} />
         </div>
 
-        <div ref={scrollRef} onScroll={onScroll} {...letGo} className="min-h-0 flex-1 overflow-y-auto">
-          {chat.messages.length === 0 ? (
-            <EmptyState />
-          ) : (
-            <MessageList
-              messages={chat.messages}
-              streaming={chat.streaming}
-              onRegenerate={activeId !== null ? regenerate : undefined}
-            />
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          <div ref={scrollRef} onScroll={onScroll} {...letGo} className="min-h-0 flex-1 overflow-y-auto">
+            {chat.messages.length === 0 ? (
+              <EmptyState onPick={pickSuggestion} />
+            ) : (
+              <MessageList
+                messages={chat.messages}
+                streaming={chat.streaming}
+                onRegenerate={activeId !== null ? regenerate : undefined}
+              />
+            )}
+          </div>
+          {/* Soft edge where the conversation meets the input box. */}
+          <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-bg to-transparent" />
+          {!pinned && chat.messages.length > 0 && (
+            <button
+              type="button"
+              onClick={jumpToLatest}
+              aria-label={m.chat.jumpToLatest}
+              title={m.chat.jumpToLatest}
+              className="absolute bottom-3 left-1/2 grid h-9 w-9 -translate-x-1/2 animate-pop place-items-center rounded-full border border-line bg-surface text-muted shadow-card transition hover:border-line-strong hover:text-fg"
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 5v14M5 12l7 7 7-7" />
+              </svg>
+            </button>
           )}
         </div>
 
@@ -227,22 +277,38 @@ export function ChatApp({
           onStop={chat.stop}
           streaming={chat.streaming}
           note={usageNote}
+          inputRef={inputRef}
         />
       </section>
     </div>
   );
 }
 
-function EmptyState() {
+function EmptyState({ onPick }: { onPick: (text: string) => void }) {
   const { m } = useI18n();
   return (
-    <div className="grid h-full place-items-center px-6 py-10 text-center">
-      <div>
-        <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-pink/25 to-violet/25 text-2xl" aria-hidden>
+    <div className="grid min-h-full place-items-center px-4 py-10 text-center">
+      <div className="w-full max-w-xl">
+        <div
+          aria-hidden
+          className="mx-auto mb-5 grid h-16 w-16 animate-pop place-items-center rounded-3xl bg-gradient-to-br from-peach/30 via-pink/25 to-violet/30 text-3xl shadow-glow"
+        >
           ✦
         </div>
-        <h2 className="text-2xl font-semibold">{m.chat.emptyTitle}</h2>
+        <h2 className="font-display text-3xl font-semibold">{m.chat.emptyTitle}</h2>
         <p className="mx-auto mt-2 max-w-md text-muted">{m.chat.emptyText}</p>
+        <div className="mt-8 grid gap-2 sm:grid-cols-2">
+          {m.chat.suggestions.map((text) => (
+            <button
+              key={text}
+              type="button"
+              onClick={() => onPick(text)}
+              className="rounded-2xl border border-line bg-surface/70 px-4 py-3 text-left text-sm text-muted shadow-card transition hover:-translate-y-0.5 hover:border-pink/50 hover:text-fg active:translate-y-0"
+            >
+              {text}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

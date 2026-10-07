@@ -408,6 +408,13 @@ export const ms: Messages = {
     model: "Model",
     left: { one: "Tinggal {n} mesej hari ini", other: "Tinggal {n} mesej hari ini" },
     capReached: "Anda sudah guna kesemua {cap} mesej hari ini. Lagi pada tengah malam (waktu UK).",
+    suggestions: ["Bantu saya tulis korus tentang malam musim panas", "Beri saya 10 idea nama band", "Terangkan teori muzik seperti saya berumur lima tahun", "Rancang senarai main perjalanan 1 jam"],
+    groupToday: "Hari ini",
+    groupYesterday: "Semalam",
+    groupWeek: "7 hari lepas",
+    groupOlder: "Lebih lama",
+    jumpToLatest: "Ke mesej terkini",
+    menu: "Menu",
     errors: {
       not_configured: "Sembang belum disediakan — beritahu admin.",
       bad_key: "Perkhidmatan sembang menolak kuncinya — beritahu admin.",

@@ -410,6 +410,13 @@ export const en = {
     model: "Model",
     left: { one: "{n} message left today", other: "{n} messages left today" },
     capReached: "You've used all {cap} of today's messages. More at midnight (UK time).",
+    suggestions: ["Help me write a chorus about summer nights", "Give me 10 band name ideas", "Explain music theory like I'm five", "Plan a 1-hour road trip playlist"],
+    groupToday: "Today",
+    groupYesterday: "Yesterday",
+    groupWeek: "Previous 7 days",
+    groupOlder: "Older",
+    jumpToLatest: "Jump to latest",
+    menu: "Menu",
     errors: {
       not_configured: "Chat isn't set up yet — let the admin know.",
       bad_key: "The chat service rejected its key — let the admin know.",

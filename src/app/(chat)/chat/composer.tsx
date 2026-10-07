@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef, type RefObject } from "react";
 import { useI18n } from "@/lib/i18n/client";
 import { MAX_MESSAGE_CHARS } from "@/config/chat";
 
@@ -11,6 +11,7 @@ export function Composer({
   onStop,
   streaming,
   note,
+  inputRef,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -19,9 +20,12 @@ export function Composer({
   streaming: boolean;
   /** Shown under the box instead of the keyboard hint (e.g. messages left today). */
   note?: string | null;
+  /** Lets the page focus the box (e.g. after picking a suggestion). */
+  inputRef?: RefObject<HTMLTextAreaElement | null>;
 }) {
   const { m } = useI18n();
-  const ref = useRef<HTMLTextAreaElement>(null);
+  const ownRef = useRef<HTMLTextAreaElement>(null);
+  const ref = inputRef ?? ownRef;
   const canSend = value.trim().length > 0 && !streaming;
 
   // Grow with the text, up to a limit, then scroll.
@@ -30,16 +34,17 @@ export function Composer({
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
-  }, [value]);
+  }, [value, ref]);
 
-  // Ready to type straight away, and again after each reply.
+  // Ready to type straight away, and again after each reply — but not on touch screens, where
+  // focusing would pop the keyboard up over the reply.
   useLayoutEffect(() => {
-    if (!streaming) ref.current?.focus({ preventScroll: true });
-  }, [streaming]);
+    if (!streaming && !isTouch()) ref.current?.focus({ preventScroll: true });
+  }, [streaming, ref]);
 
   return (
     <form
-      className="mx-auto w-full max-w-3xl px-4 pb-4"
+      className="mx-auto w-full max-w-3xl px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4 sm:pb-4"
       onSubmit={(e) => {
         e.preventDefault();
         if (canSend) onSend();
@@ -53,9 +58,11 @@ export function Composer({
           maxLength={MAX_MESSAGE_CHARS}
           placeholder={m.chat.placeholder}
           aria-label={m.chat.placeholder}
+          enterKeyHint="enter"
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+            // Phone keyboards have no Shift+Enter, so there Enter makes a new line and the button sends.
+            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && !isTouch()) {
               e.preventDefault();
               if (canSend) onSend();
             }
@@ -93,4 +100,9 @@ export function Composer({
       )}
     </form>
   );
+}
+
+/** A touch-first device (phone or tablet), where there's no physical keyboard to expect. */
+function isTouch() {
+  return typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
 }

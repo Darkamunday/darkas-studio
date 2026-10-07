@@ -407,6 +407,13 @@ export const id: Messages = {
     model: "Model",
     left: { one: "Sisa {n} pesan hari ini", other: "Sisa {n} pesan hari ini" },
     capReached: "Kamu sudah memakai semua {cap} pesan hari ini. Tambah lagi tengah malam (waktu Inggris).",
+    suggestions: ["Bantu aku menulis reff tentang malam musim panas", "Beri aku 10 ide nama band", "Jelaskan teori musik seperti aku berumur lima tahun", "Susun playlist perjalanan 1 jam"],
+    groupToday: "Hari ini",
+    groupYesterday: "Kemarin",
+    groupWeek: "7 hari terakhir",
+    groupOlder: "Lebih lama",
+    jumpToLatest: "Ke pesan terbaru",
+    menu: "Menu",
     errors: {
       not_configured: "Chat belum disiapkan — kabari admin.",
       bad_key: "Layanan chat menolak kuncinya — kabari admin.",

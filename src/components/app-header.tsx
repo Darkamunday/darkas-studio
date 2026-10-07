@@ -8,8 +8,11 @@ import { LanguagePicker } from "./language-picker";
 import { ThemeToggle } from "./theme-toggle";
 import { logout } from "@/app/(auth)/actions";
 
-/** The top bar shared by every signed-in page. */
-export async function AppHeader({ user }: { user: User }) {
+/**
+ * The top bar shared by every signed-in page. `compact` drops the second (phone-only) row of nav
+ * links, for screens that offer them elsewhere — chat puts them in its drawer to save height.
+ */
+export async function AppHeader({ user, compact = false }: { user: User; compact?: boolean }) {
   const theme = (await cookies()).get("theme")?.value === "light" ? "light" : "dark";
   const { m } = await getI18n();
   // Only hides the link; /chat and its API routes check access themselves.
@@ -42,7 +45,9 @@ export async function AppHeader({ user }: { user: User }) {
           </div>
         </div>
       </div>
-      <NavLinks isAdmin={!!user.is_admin} showChat={showChat} className="mx-auto max-w-6xl px-3 pb-2 sm:hidden" />
+      {!compact && (
+        <NavLinks isAdmin={!!user.is_admin} showChat={showChat} className="mx-auto max-w-6xl px-3 pb-2 sm:hidden" />
+      )}
     </header>
   );
 }
