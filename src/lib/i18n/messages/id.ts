@@ -399,7 +399,11 @@ export const id: Messages = {
     closeChats: "Sembunyikan obrolan",
     hint: "Enter untuk kirim · Shift+Enter untuk baris baru",
     thinking: "Berpikir…",
-    stopped: "Dihentikan",
+    regenerate: "Buat ulang",
+    retry: "Coba lagi",
+    copyMessage: "Salin pesan",
+    copyCode: "Salin kode",
+    code: "kode",
     errors: {
       not_configured: "Chat belum disiapkan — kabari admin.",
       bad_key: "Layanan chat menolak kuncinya — kabari admin.",

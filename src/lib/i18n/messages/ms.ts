@@ -400,7 +400,11 @@ export const ms: Messages = {
     closeChats: "Sembunyikan sembang",
     hint: "Enter untuk hantar · Shift+Enter untuk baris baharu",
     thinking: "Sedang berfikir…",
-    stopped: "Dihentikan",
+    regenerate: "Jana semula",
+    retry: "Cuba lagi",
+    copyMessage: "Salin mesej",
+    copyCode: "Salin kod",
+    code: "kod",
     errors: {
       not_configured: "Sembang belum disediakan — beritahu admin.",
       bad_key: "Perkhidmatan sembang menolak kuncinya — beritahu admin.",

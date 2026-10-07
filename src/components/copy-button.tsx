@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useI18n } from "@/lib/i18n/client";
 
-async function copyText(text: string) {
+export async function copyText(text: string) {
   // The Clipboard API only exists on https/localhost; fall back for plain-http LAN access.
   if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
   const ta = document.createElement("textarea");

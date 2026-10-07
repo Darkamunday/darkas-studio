@@ -399,7 +399,11 @@ export const fr: Messages = {
     closeChats: "Masquer les chats",
     hint: "Entrée pour envoyer · Maj+Entrée pour aller à la ligne",
     thinking: "Réflexion…",
-    stopped: "Arrêté",
+    regenerate: "Régénérer",
+    retry: "Réessayer",
+    copyMessage: "Copier le message",
+    copyCode: "Copier le code",
+    code: "code",
     errors: {
       not_configured: "Le chat n'est pas encore configuré — préviens l'admin.",
       bad_key: "Le service de chat a refusé sa clé — préviens l'admin.",

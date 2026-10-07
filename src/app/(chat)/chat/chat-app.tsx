@@ -100,6 +100,12 @@ export function ChatApp({
     if (!accepted) setDraft((d) => d || content); // refused (e.g. daily limit): give their text back
   }
 
+  function regenerate() {
+    setError(null);
+    stick.current = true;
+    void chat.regenerate();
+  }
+
   function startNew() {
     chat.stop();
     setDrawerOpen(false);
@@ -174,7 +180,11 @@ export function ChatApp({
           {chat.messages.length === 0 ? (
             <EmptyState />
           ) : (
-            <MessageList messages={chat.messages} streaming={chat.streaming} />
+            <MessageList
+              messages={chat.messages}
+              streaming={chat.streaming}
+              onRegenerate={activeId !== null ? regenerate : undefined}
+            />
           )}
         </div>
 

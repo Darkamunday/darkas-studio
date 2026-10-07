@@ -402,7 +402,11 @@ export const en = {
     closeChats: "Hide chats",
     hint: "Enter to send · Shift+Enter for a new line",
     thinking: "Thinking…",
-    stopped: "Stopped",
+    regenerate: "Regenerate",
+    retry: "Try again",
+    copyMessage: "Copy message",
+    copyCode: "Copy code",
+    code: "code",
     errors: {
       not_configured: "Chat isn't set up yet — let the admin know.",
       bad_key: "The chat service rejected its key — let the admin know.",

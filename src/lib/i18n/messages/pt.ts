@@ -400,7 +400,11 @@ export const pt: Messages = {
     closeChats: "Esconder chats",
     hint: "Enter para enviar · Shift+Enter para nova linha",
     thinking: "Pensando…",
-    stopped: "Interrompido",
+    regenerate: "Gerar de novo",
+    retry: "Tentar de novo",
+    copyMessage: "Copiar mensagem",
+    copyCode: "Copiar código",
+    code: "código",
     errors: {
       not_configured: "O chat ainda não foi configurado — avise o admin.",
       bad_key: "O serviço de chat recusou a chave — avise o admin.",
