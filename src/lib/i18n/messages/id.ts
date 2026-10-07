@@ -255,6 +255,10 @@ export const id: Messages = {
 
   admin: {
     blurb: "Siapa bikin apa, dan berapa banyak bahan bakar yang tersisa.",
+    tabOverview: "Ringkasan",
+    tabPeople: "Orang",
+    tabChat: "Chat",
+    tabSongs: "Lagu",
     credits: "Kredit Suno",
     creditsUnreachable: "Tidak bisa menghubungi Suno",
     generationsLeft: "≈ {n} pembuatan lagi",

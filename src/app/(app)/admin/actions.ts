@@ -23,13 +23,13 @@ function newCode() {
 export async function createInvite() {
   const admin = await requireAdmin();
   db.prepare("INSERT INTO invite_codes (code, created_by) VALUES (?, ?)").run(newCode(), admin.id);
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout");
 }
 
 export async function revokeInvite(formData: FormData) {
   await requireAdmin();
   db.prepare("DELETE FROM invite_codes WHERE code = ? AND used_by IS NULL").run(String(formData.get("code")));
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout");
 }
 
 /** Resolve the target user, refusing to act on yourself (avoids locking out the last admin). */
@@ -47,14 +47,14 @@ export async function setUserDisabled(formData: FormData) {
   db.prepare("UPDATE users SET disabled = ? WHERE id = ?").run(disabled ? 1 : 0, id);
   // Kick them out immediately rather than waiting for the session to expire.
   if (disabled) db.prepare("DELETE FROM sessions WHERE user_id = ?").run(id);
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout");
 }
 
 export async function setUserAdmin(formData: FormData) {
   const id = await targetUser(formData);
   if (id === null) return;
   db.prepare("UPDATE users SET is_admin = ? WHERE id = ?").run(formData.get("admin") === "1" ? 1 : 0, id);
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout");
 }
 
 // ---- chat access ----------------------------------------------------------------
@@ -65,7 +65,7 @@ export async function setChatEnabled(formData: FormData) {
   const id = Number(formData.get("userId"));
   if (!Number.isInteger(id)) return;
   db.prepare("UPDATE users SET chat_enabled = ? WHERE id = ?").run(formData.get("enabled") === "1" ? 1 : 0, id);
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout");
 }
 
 /** Blank clears the personal limit, falling back to the default in src/config/chat.ts. */
@@ -77,14 +77,14 @@ export async function setChatCap(formData: FormData) {
   const cap = raw === "" ? null : Math.floor(Number(raw));
   if (cap !== null && !(Number.isFinite(cap) && cap >= 0 && cap <= 100_000)) return;
   db.prepare("UPDATE users SET chat_daily_cap = ? WHERE id = ?").run(cap, id);
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout");
 }
 
 /** Bulk switch. Admins always have chat, so their flag is left alone. */
 export async function setChatForAll(formData: FormData) {
   await requireAdmin();
   db.prepare("UPDATE users SET chat_enabled = ? WHERE is_admin = 0").run(formData.get("enabled") === "1" ? 1 : 0);
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout");
 }
 
 /** The chat master prompt, for everyone. `reset` (or blank) goes back to the default in the config. */
@@ -93,7 +93,7 @@ export async function saveMasterPrompt(formData: FormData) {
   const text = formData.get("reset") === "1" ? "" : String(formData.get("prompt") ?? "");
   if (text.length > MAX_MASTER_PROMPT_CHARS) return;
   setMasterPrompt(text, admin.id);
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout");
 }
 
 export async function fetchTimedLyricsAction(trackId: number): Promise<{ ok: boolean; error?: string }> {
@@ -111,6 +111,6 @@ export async function fetchTimedLyricsAction(trackId: number): Promise<{ ok: boo
     return { ok: false, error: m.generate.errors.unexpected };
   }
   revalidatePath(`/admin/lyrics/${track.id}`);
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout");
   return { ok: true };
 }

@@ -256,6 +256,10 @@ export const pt: Messages = {
 
   admin: {
     blurb: "Quem está criando o quê, e quanto combustível ainda resta no tanque.",
+    tabOverview: "Visão geral",
+    tabPeople: "Pessoas",
+    tabChat: "Chat",
+    tabSongs: "Músicas",
     credits: "Créditos Suno",
     creditsUnreachable: "Não deu para falar com a Suno",
     generationsLeft: "≈ {n} gerações restantes",

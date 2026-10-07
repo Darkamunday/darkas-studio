@@ -19,7 +19,7 @@ export async function deleteTrackAction(trackId: number): Promise<{ ok: boolean;
   if (result === "forbidden") return { ok: false, error: (await getI18n()).m.catalogue.errors.deleteOwn };
   revalidatePath("/catalogue");
   revalidatePath("/catalogue/deleted");
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout");
   return { ok: true };
 }
 
@@ -69,7 +69,7 @@ export async function restoreTrackAction(trackId: number): Promise<{ ok: boolean
   }
   revalidatePath("/catalogue");
   revalidatePath("/catalogue/deleted");
-  revalidatePath("/admin");
+  revalidatePath("/admin", "layout");
   return { ok: true };
 }
 

@@ -29,7 +29,7 @@ export default async function TimedLyricsPage({ params }: PageProps<"/admin/lyri
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <div>
-        <Link href="/admin" className="text-sm text-subtle transition hover:text-fg">
+        <Link href="/admin/songs" className="text-sm text-subtle transition hover:text-fg">
           {m.timed.back}
         </Link>
         <p className="mt-3 text-xs font-semibold uppercase tracking-wider text-accent-fg">{m.timed.heading}</p>

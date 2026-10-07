@@ -258,6 +258,10 @@ export const en = {
 
   admin: {
     blurb: "Who's making what, and how much fuel is left in the tank.",
+    tabOverview: "Overview",
+    tabPeople: "People",
+    tabChat: "Chat",
+    tabSongs: "Songs",
     credits: "Suno credits",
     creditsUnreachable: "Couldn't reach Suno",
     generationsLeft: "≈ {n} generations left",

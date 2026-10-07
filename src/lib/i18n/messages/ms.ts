@@ -256,6 +256,10 @@ export const ms: Messages = {
 
   admin: {
     blurb: "Siapa buat apa, dan berapa banyak minyak yang tinggal dalam tangki.",
+    tabOverview: "Gambaran",
+    tabPeople: "Orang",
+    tabChat: "Sembang",
+    tabSongs: "Lagu",
     credits: "Kredit Suno",
     creditsUnreachable: "Tidak dapat menghubungi Suno",
     generationsLeft: "≈ {n} penjanaan lagi",
