@@ -27,6 +27,9 @@ export const MAX_REPLY_TOKENS = 4_000;
 /** Messages a person can send per day (Europe/London), unless the admin page sets their own cap. Admins have no cap. */
 export const DEFAULT_DAILY_CAP = 50;
 
+/** Longest conversation title, in characters. */
+export const CHAT_TITLE_MAX = 80;
+
 /** Longest message someone can send, in characters. */
 export const MAX_MESSAGE_CHARS = 20_000;
 
