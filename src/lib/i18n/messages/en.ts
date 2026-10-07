@@ -407,6 +407,9 @@ export const en = {
     copyMessage: "Copy message",
     copyCode: "Copy code",
     code: "code",
+    model: "Model",
+    left: { one: "{n} message left today", other: "{n} messages left today" },
+    capReached: "You've used all {cap} of today's messages. More at midnight (UK time).",
     errors: {
       not_configured: "Chat isn't set up yet — let the admin know.",
       bad_key: "The chat service rejected its key — let the admin know.",
@@ -417,6 +420,28 @@ export const en = {
       chat_disabled: "Chat isn't enabled on your account any more.",
       not_found: "That chat doesn't exist any more.",
     },
+  },
+
+  chatAdmin: {
+    heading: "Chat access",
+    blurb: "Chat is off for everyone until you switch it on. Admins always have it and no daily limit. A blank limit means the default of {cap} messages a day.",
+    totals: "{today} messages today · {week} in the last 7 days",
+    colChat: "Chat",
+    colLimit: "Daily limit",
+    colToday: "Today",
+    colWeek: "7 days",
+    colTotal: "All time",
+    colChats: "Chats",
+    on: "On",
+    off: "Off",
+    turnOn: "Turn on",
+    turnOff: "Turn off",
+    always: "Always",
+    noLimit: "No limit",
+    save: "Save",
+    enableAll: "Enable for all",
+    disableAll: "Disable for all",
+    disableAllConfirm: "Turn chat off for everyone except admins? Their chats are kept.",
   },
 };
 

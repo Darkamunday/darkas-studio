@@ -55,6 +55,36 @@ export async function setUserAdmin(formData: FormData) {
   revalidatePath("/admin");
 }
 
+// ---- chat access ----------------------------------------------------------------
+// Changes apply on the user's next request: every chat page and route reads these columns fresh.
+
+export async function setChatEnabled(formData: FormData) {
+  await requireAdmin();
+  const id = Number(formData.get("userId"));
+  if (!Number.isInteger(id)) return;
+  db.prepare("UPDATE users SET chat_enabled = ? WHERE id = ?").run(formData.get("enabled") === "1" ? 1 : 0, id);
+  revalidatePath("/admin");
+}
+
+/** Blank clears the personal limit, falling back to the default in src/config/chat.ts. */
+export async function setChatCap(formData: FormData) {
+  await requireAdmin();
+  const id = Number(formData.get("userId"));
+  if (!Number.isInteger(id)) return;
+  const raw = String(formData.get("cap") ?? "").trim();
+  const cap = raw === "" ? null : Math.floor(Number(raw));
+  if (cap !== null && !(Number.isFinite(cap) && cap >= 0 && cap <= 100_000)) return;
+  db.prepare("UPDATE users SET chat_daily_cap = ? WHERE id = ?").run(cap, id);
+  revalidatePath("/admin");
+}
+
+/** Bulk switch. Admins always have chat, so their flag is left alone. */
+export async function setChatForAll(formData: FormData) {
+  await requireAdmin();
+  db.prepare("UPDATE users SET chat_enabled = ? WHERE is_admin = 0").run(formData.get("enabled") === "1" ? 1 : 0);
+  revalidatePath("/admin");
+}
+
 export async function fetchTimedLyricsAction(trackId: number): Promise<{ ok: boolean; error?: string }> {
   const admin = await requireAdmin();
   const { m } = await getI18n();

@@ -16,6 +16,7 @@ type Request = { conversationId?: number; content?: string; regenerate?: true; m
 type Handlers = {
   onConversation?: (id: number, isNew: boolean) => void;
   onTitle?: (title: string) => void;
+  onUsage?: (usage: { sent: number; cap: number | null }) => void;
   onFinish?: () => void;
   /** An error reason (a key of m.chat.errors) and, for daily_cap, the cap. */
   onError?: (reason: string, cap?: number) => void;
@@ -82,6 +83,7 @@ export function useChatStream(initial: UiMessage[], conversationId: number | nul
           switch (event.type) {
             case "meta":
               h.onConversation?.(event.conversationId, idRef.current !== event.conversationId);
+              h.onUsage?.(event.usage);
               idRef.current = event.conversationId;
               if (event.userMessageId !== null) {
                 const id = event.userMessageId;

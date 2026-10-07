@@ -21,6 +21,9 @@ export const CHAT_MODELS: ChatModel[] = [
 /** Used for new chats; must be one of the ids above. */
 export const DEFAULT_MODEL = "deepseek-v4.1-flash";
 
+/** Remembers the model a browser picked last, so new chats start on it. */
+export const CHAT_MODEL_COOKIE = "chat-model";
+
 /** Room kept free in the context window for the reply. */
 export const MAX_REPLY_TOKENS = 4_000;
 

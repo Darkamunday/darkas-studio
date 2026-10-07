@@ -3,28 +3,43 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useI18n } from "@/lib/i18n/client";
-import { fmt } from "@/lib/i18n/format";
+import { fmt, plural } from "@/lib/i18n/format";
 import { Sidebar, type SidebarConversation } from "./sidebar";
 import { MessageList } from "./messages";
 import { Composer } from "./composer";
+import { ModelPicker } from "./model-picker";
+import { CHAT_MODEL_COOKIE } from "@/config/chat";
 import { useChatStream, type UiMessage } from "./use-chat-stream";
 
 export function ChatApp({
   initialConversations,
   initialId,
   initialMessages,
+  initialModel,
+  initialUsage,
 }: {
   initialConversations: SidebarConversation[];
   initialId: number | null;
   initialMessages: UiMessage[];
+  initialModel: string;
+  /** Sends today and the daily cap (null = no cap). */
+  initialUsage: { sent: number; cap: number | null };
 }) {
-  const { m } = useI18n();
+  const { locale, m } = useI18n();
   const router = useRouter();
   const [conversations, setConversations] = useState(initialConversations);
   const [activeId, setActiveId] = useState(initialId);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [model, setModel] = useState(initialModel);
+  const [usage, setUsage] = useState(initialUsage);
+
+  function pickModel(id: string) {
+    setModel(id);
+    // New chats start on the model this browser picked last (read by the page on the server).
+    document.cookie = `${CHAT_MODEL_COOKIE}=${encodeURIComponent(id)}; path=/; max-age=31536000; samesite=lax`;
+  }
 
   const touch = (id: number, patch: Partial<SidebarConversation> = {}) =>
     setConversations((list) => {
@@ -42,10 +57,13 @@ export function ChatApp({
       }
       touch(id);
     },
+    onUsage: setUsage,
     onTitle: (title) => {
       if (activeIdRef.current !== null) touch(activeIdRef.current, { title });
     },
     onError: (reason, cap) => {
+      // The note under the box already says the limit's been reached.
+      if (reason === "daily_cap" && cap !== undefined) return setUsage({ sent: cap, cap });
       const text = (m.chat.errors as Record<string, string>)[reason] ?? m.chat.errors.generic;
       setError(fmt(text, { cap: cap ?? "" }));
     },
@@ -96,14 +114,14 @@ export function ChatApp({
     setError(null);
     setDraft("");
     stick.current = true;
-    const accepted = await chat.send(content);
+    const accepted = await chat.send(content, model);
     if (!accepted) setDraft((d) => d || content); // refused (e.g. daily limit): give their text back
   }
 
   function regenerate() {
     setError(null);
     stick.current = true;
-    void chat.regenerate();
+    void chat.regenerate(model);
   }
 
   function startNew() {
@@ -132,6 +150,14 @@ export function ChatApp({
     setConversations((list) => list.filter((c) => c.id !== id));
     if (id === activeId) startNew();
   }
+
+  const left = usage.cap === null ? null : Math.max(0, usage.cap - usage.sent);
+  const usageNote =
+    left === null || left > 10
+      ? null
+      : left === 0
+        ? fmt(m.chat.capReached, { cap: usage.cap ?? 0 })
+        : plural(locale, m.chat.left, left);
 
   const activeTitle = conversations.find((c) => c.id === activeId)?.title ?? m.chat.untitled;
   const sidebar = (
@@ -173,7 +199,8 @@ export function ChatApp({
               <path d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <h1 className="min-w-0 truncate text-sm font-medium text-muted">{activeTitle}</h1>
+          <h1 className="min-w-0 flex-1 truncate text-sm font-medium text-muted">{activeTitle}</h1>
+          <ModelPicker value={model} onChange={pickModel} disabled={chat.streaming} />
         </div>
 
         <div ref={scrollRef} onScroll={onScroll} {...letGo} className="min-h-0 flex-1 overflow-y-auto">
@@ -193,7 +220,14 @@ export function ChatApp({
             {error}
           </p>
         )}
-        <Composer value={draft} onChange={setDraft} onSend={send} onStop={chat.stop} streaming={chat.streaming} />
+        <Composer
+          value={draft}
+          onChange={setDraft}
+          onSend={send}
+          onStop={chat.stop}
+          streaming={chat.streaming}
+          note={usageNote}
+        />
       </section>
     </div>
   );

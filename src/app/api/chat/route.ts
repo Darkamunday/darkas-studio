@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
         }
       };
 
-      send({ type: "meta", conversationId, userMessageId });
+      send({ type: "meta", conversationId, userMessageId, usage: { sent: sentToday(user.id), cap } });
 
       let reply = "";
       let messageId: number | null = null;

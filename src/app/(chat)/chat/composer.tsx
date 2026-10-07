@@ -10,12 +10,15 @@ export function Composer({
   onSend,
   onStop,
   streaming,
+  note,
 }: {
   value: string;
   onChange: (v: string) => void;
   onSend: () => void;
   onStop: () => void;
   streaming: boolean;
+  /** Shown under the box instead of the keyboard hint (e.g. messages left today). */
+  note?: string | null;
 }) {
   const { m } = useI18n();
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -83,7 +86,11 @@ export function Composer({
           </button>
         )}
       </div>
-      <p className="mt-2 hidden text-center text-xs text-subtle sm:block">{m.chat.hint}</p>
+      {note ? (
+        <p className="mt-2 text-center text-xs font-medium text-accent-fg">{note}</p>
+      ) : (
+        <p className="mt-2 hidden text-center text-xs text-subtle sm:block">{m.chat.hint}</p>
+      )}
     </form>
   );
 }
