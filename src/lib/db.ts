@@ -202,6 +202,11 @@ const MIGRATIONS: string[] = [
     PRIMARY KEY (user_id, day)
   );
   `,
+  // 10: each person's custom instructions for the chat assistant (NULL = none), added after the
+  // base system prompt on every message in all their chats.
+  `
+  ALTER TABLE users ADD COLUMN chat_instructions TEXT;
+  `,
 ];
 
 function open(): DatabaseSync {

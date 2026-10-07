@@ -34,6 +34,8 @@ export function Sidebar({
   onDelete,
   onClose,
   isAdmin,
+  hasInstructions,
+  onOpenInstructions,
 }: {
   conversations: SidebarConversation[];
   activeId: number | null;
@@ -44,6 +46,8 @@ export function Sidebar({
   /** Set when shown as the phone drawer: adds a close button and the site's nav links. */
   onClose?: () => void;
   isAdmin: boolean;
+  hasInstructions: boolean;
+  onOpenInstructions: () => void;
 }) {
   const { m } = useI18n();
   const [editing, setEditing] = useState<number | null>(null);
@@ -148,6 +152,21 @@ export function Sidebar({
           </ul>
         )}
       </nav>
+      <div className="border-t border-line/70 p-2">
+        <button
+          type="button"
+          onClick={onOpenInstructions}
+          className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-muted transition hover:bg-surface-2 hover:text-fg"
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4 flex-none" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" />
+          </svg>
+          <span className="flex-1 truncate text-left">{m.chat.instructions}</span>
+          {hasInstructions && (
+            <span className="rounded-full bg-pink/12 px-2 py-0.5 text-xs font-medium text-accent-fg">{m.chat.instructionsOn}</span>
+          )}
+        </button>
+      </div>
       {onClose && (
         <div className="border-t border-line/70 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:hidden">
           <p className="sr-only">{m.chat.menu}</p>

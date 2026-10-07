@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { capFor, hasChatAccess, sentToday } from "@/lib/chat/access";
 import { cookies } from "next/headers";
 import { CHAT_MODEL_COOKIE, DEFAULT_MODEL, findChatModel } from "@/config/chat";
-import { getConversation, listConversations, listMessages } from "@/lib/chat/store";
+import { getConversation, getInstructions, listConversations, listMessages } from "@/lib/chat/store";
 import { getI18n } from "@/lib/i18n/server";
 import { card } from "@/components/ui";
 import { ChatApp } from "../chat-app";
@@ -59,6 +59,7 @@ export default async function ChatPage({ params }: PageProps<"/chat/[[...id]]">)
       initialMessages={messages}
       initialModel={model}
       initialUsage={{ sent: sentToday(user.id), cap: capFor(user.id) }}
+      initialInstructions={getInstructions(user.id) ?? ""}
       isAdmin={!!user.is_admin}
     />
   );

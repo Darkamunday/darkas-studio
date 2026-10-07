@@ -33,6 +33,9 @@ export const DEFAULT_DAILY_CAP = 50;
 /** Longest conversation title, in characters. */
 export const CHAT_TITLE_MAX = 80;
 
+/** Longest custom instructions a person can save, in characters. */
+export const MAX_INSTRUCTIONS_CHARS = 1_500;
+
 /** Longest message someone can send, in characters. */
 export const MAX_MESSAGE_CHARS = 20_000;
 

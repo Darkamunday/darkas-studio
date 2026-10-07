@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useI18n } from "@/lib/i18n/client";
 import { fmt, plural } from "@/lib/i18n/format";
@@ -8,6 +8,7 @@ import { Sidebar, type SidebarConversation } from "./sidebar";
 import { MessageList } from "./messages";
 import { Composer } from "./composer";
 import { ModelPicker } from "./model-picker";
+import { InstructionsDialog } from "./instructions-dialog";
 import { CHAT_MODEL_COOKIE } from "@/config/chat";
 import { useChatStream, type UiMessage } from "./use-chat-stream";
 
@@ -17,6 +18,7 @@ export function ChatApp({
   initialMessages,
   initialModel,
   initialUsage,
+  initialInstructions,
   isAdmin,
 }: {
   initialConversations: SidebarConversation[];
@@ -25,6 +27,7 @@ export function ChatApp({
   initialModel: string;
   /** Sends today and the daily cap (null = no cap). */
   initialUsage: { sent: number; cap: number | null };
+  initialInstructions: string;
   isAdmin: boolean;
 }) {
   const { locale, m } = useI18n();
@@ -37,6 +40,8 @@ export function ChatApp({
   const [model, setModel] = useState(initialModel);
   const [usage, setUsage] = useState(initialUsage);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [instructions, setInstructions] = useState(initialInstructions);
+  const [instructionsOpen, setInstructionsOpen] = useState(false);
 
   // Escape closes the phone drawer.
   useEffect(() => {
@@ -141,6 +146,9 @@ export function ChatApp({
     void chat.regenerate(model);
   }
 
+  // Stable, so the dialog's Escape listener isn't re-attached on every render.
+  const closeInstructions = useCallback(() => setInstructionsOpen(false), []);
+
   function jumpToLatest() {
     const el = scrollRef.current;
     if (!el) return;
@@ -198,6 +206,11 @@ export function ChatApp({
     onRename: rename,
     onDelete: remove,
     isAdmin,
+    hasInstructions: instructions.trim() !== "",
+    onOpenInstructions: () => {
+      setDrawerOpen(false);
+      setInstructionsOpen(true);
+    },
   };
 
   return (
@@ -218,6 +231,10 @@ export function ChatApp({
             <Sidebar {...sidebarProps} onClose={() => setDrawerOpen(false)} />
           </div>
         </div>
+      )}
+
+      {instructionsOpen && (
+        <InstructionsDialog initial={instructions} onClose={closeInstructions} onSaved={setInstructions} />
       )}
 
       <section className="flex min-w-0 flex-1 flex-col">

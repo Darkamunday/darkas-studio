@@ -6,6 +6,17 @@ import { MAX_REPLY_TOKENS } from "@/config/chat";
 // long chats under the model's window without shipping a tokenizer.
 const estimate = (t: ChatTurn) => Math.ceil(t.content.length / 4) + 4;
 
+/** The base prompt from the config, followed by the person's own instructions if they've set any. */
+export function systemPrompt(base: string, instructions: string | null): string {
+  if (!instructions) return base;
+  return `${base}
+
+The person you're talking with has given these custom instructions for how you should respond. Follow them unless they conflict with the guidance above:
+<custom_instructions>
+${instructions}
+</custom_instructions>`;
+}
+
 /**
  * The system prompt plus as much recent history as fits in the model's window, newest kept first.
  * The latest message is always sent, even if it alone is over budget.

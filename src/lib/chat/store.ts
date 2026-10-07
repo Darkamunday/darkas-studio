@@ -81,3 +81,17 @@ export function dropLastAssistant(conversationId: number): boolean {
   db.prepare("DELETE FROM messages WHERE id = ?").run(last.id);
   return true;
 }
+
+// ---- custom instructions ------------------------------------------------------
+
+export function getInstructions(userId: number): string | null {
+  const row = db.prepare("SELECT chat_instructions FROM users WHERE id = ?").get(userId) as
+    | { chat_instructions: string | null }
+    | undefined;
+  return row?.chat_instructions ?? null;
+}
+
+/** Empty clears them. */
+export function setInstructions(userId: number, text: string) {
+  db.prepare("UPDATE users SET chat_instructions = ? WHERE id = ?").run(text.trim() || null, userId);
+}
