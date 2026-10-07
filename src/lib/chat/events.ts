@@ -4,7 +4,9 @@
 export type ChatEvent =
   /** usage: sends today and the daily cap (null = no cap), counting this one. */
   | { type: "meta"; conversationId: number; userMessageId: number | null; usage: { sent: number; cap: number | null } }
+  | { type: "thinking"; text: string }
   | { type: "delta"; text: string }
-  | { type: "done"; messageId: number | null }
+  /** thinkingMs: how long the model reasoned before answering (null if it didn't). */
+  | { type: "done"; messageId: number | null; thinkingMs: number | null }
   | { type: "title"; title: string }
   | { type: "error"; reason: string };

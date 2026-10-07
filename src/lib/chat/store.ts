@@ -17,6 +17,9 @@ export type ChatMessage = {
   id: number;
   role: ChatRole;
   content: string;
+  /** The model's reasoning before this reply, if it thought. */
+  thinking: string | null;
+  thinking_ms: number | null;
   created_at: number;
 };
 
@@ -55,7 +58,7 @@ export function deleteConversation(userId: number, id: number): boolean {
 export function listMessages(userId: number, conversationId: number): ChatMessage[] {
   return db
     .prepare(
-      `SELECT m.id, m.role, m.content, m.created_at
+      `SELECT m.id, m.role, m.content, m.thinking, m.thinking_ms, m.created_at
          FROM messages m JOIN conversations c ON c.id = m.conversation_id
         WHERE m.conversation_id = ? AND c.user_id = ?
         ORDER BY m.id`,
@@ -64,10 +67,15 @@ export function listMessages(userId: number, conversationId: number): ChatMessag
 }
 
 /** Append a message to a conversation the caller has already checked belongs to the user. */
-export function addMessage(conversationId: number, role: ChatRole, content: string): number {
+export function addMessage(
+  conversationId: number,
+  role: ChatRole,
+  content: string,
+  thinking: { text: string; ms: number | null } | null = null,
+): number {
   const res = db
-    .prepare("INSERT INTO messages (conversation_id, role, content) VALUES (?, ?, ?)")
-    .run(conversationId, role, content);
+    .prepare("INSERT INTO messages (conversation_id, role, content, thinking, thinking_ms) VALUES (?, ?, ?, ?, ?)")
+    .run(conversationId, role, content, thinking?.text || null, thinking?.ms ?? null);
   db.prepare("UPDATE conversations SET updated_at = unixepoch() WHERE id = ?").run(conversationId);
   return Number(res.lastInsertRowid);
 }

@@ -15,16 +15,21 @@ export type ChatModel = {
   price: { input: number; output: number };
   /** Only admins can pick it (for the pricier models). */
   adminOnly?: boolean;
+  /**
+   * Can reason before answering, switched by the Think toggle in the chat (sent as Ollama's `think`).
+   * Leave off for models that can't (the toggle is hidden for them).
+   */
+  thinking?: boolean;
 };
 
 // Prices from Ollama Cloud's price list (Oct 2026), standard rate — off-peak discounts aren't applied,
 // so spend figures err on the high side.
 export const CHAT_MODELS: ChatModel[] = [
-  { id: "deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash", contextTokens: 64_000, price: { input: 0.3, output: 1.2 } },
-  { id: "gemma4:31b", label: "Gemma 4 31B", contextTokens: 32_000, price: { input: 0.14, output: 0.4 } },
+  { id: "deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash", contextTokens: 64_000, price: { input: 0.3, output: 1.2 }, thinking: true },
+  { id: "gemma4:31b", label: "Gemma 4 31B", contextTokens: 32_000, price: { input: 0.14, output: 0.4 }, thinking: true },
   { id: "mistral-large-3:675b", label: "Mistral Large 3", contextTokens: 32_000, price: { input: 0.5, output: 1.5 } },
-  { id: "glm-5.3", label: "GLM 5.3", contextTokens: 64_000, price: { input: 1.4, output: 4.4 }, adminOnly: true },
-  { id: "kimi-k3", label: "Kimi K3", contextTokens: 64_000, price: { input: 3, output: 15 }, adminOnly: true },
+  { id: "glm-5.3", label: "GLM 5.3", contextTokens: 64_000, price: { input: 1.4, output: 4.4 }, adminOnly: true, thinking: true },
+  { id: "kimi-k3", label: "Kimi K3", contextTokens: 64_000, price: { input: 3, output: 15 }, adminOnly: true, thinking: true },
 ];
 
 /** Used for new chats; must be one of the ids above, and not an admin-only one. */
@@ -32,6 +37,9 @@ export const DEFAULT_MODEL = "deepseek-v4.1-flash";
 
 /** Remembers the model a browser picked last, so new chats start on it. */
 export const CHAT_MODEL_COOKIE = "chat-model";
+
+/** Remembers the Think toggle ("0" = off; on otherwise). */
+export const CHAT_THINK_COOKIE = "chat-think";
 
 /** Room kept free in the context window for the reply. */
 export const MAX_REPLY_TOKENS = 4_000;

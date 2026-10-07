@@ -42,7 +42,7 @@ async function post(body: object, signal?: AbortSignal): Promise<Response> {
 }
 
 type Chunk = {
-  message?: { content?: string };
+  message?: { content?: string; thinking?: string };
   done?: boolean;
   error?: string;
   /** Tokens read and written, reported on the final chunk (written includes any reasoning). */
@@ -57,19 +57,30 @@ const usageOf = (c: Chunk): TokenUsage | null =>
     ? { input: c.prompt_eval_count ?? 0, output: c.eval_count ?? 0 }
     : null;
 
+/** A piece of a streamed reply: its reasoning (for thinking models) or the answer itself. */
+export type StreamPiece = { kind: "thinking" | "text"; text: string };
+
 /**
- * Stream a reply, yielding text as it arrives. Aborting `signal` stops the upstream request.
+ * Stream a reply, yielding reasoning and answer text as they arrive. Aborting `signal` stops the
+ * upstream request. `think` switches reasoning on or off (left out: the model's own default).
  * `onUsage` gets the token counts when the reply finishes (not called if it's cut short).
  */
 export async function* streamChat(opts: {
   model: string;
   messages: ChatTurn[];
   numCtx: number;
+  think?: boolean;
   signal?: AbortSignal;
   onUsage?: (usage: TokenUsage) => void;
-}): AsyncGenerator<string> {
+}): AsyncGenerator<StreamPiece> {
   const res = await post(
-    { model: opts.model, messages: opts.messages, stream: true, options: { num_ctx: opts.numCtx } },
+    {
+      model: opts.model,
+      messages: opts.messages,
+      stream: true,
+      ...(opts.think === undefined ? {} : { think: opts.think }),
+      options: { num_ctx: opts.numCtx },
+    },
     opts.signal,
   );
   if (!res.body) throw new OllamaError("generic", "empty body");
@@ -91,8 +102,8 @@ export async function* streamChat(opts: {
         console.error(`[ollama] stream error: ${chunk.error}`);
         throw new OllamaError("generic", chunk.error);
       }
-      // Reasoning models also send message.thinking; it isn't shown, so it's skipped.
-      if (chunk.message?.content) yield chunk.message.content;
+      if (chunk.message?.thinking) yield { kind: "thinking", text: chunk.message.thinking };
+      if (chunk.message?.content) yield { kind: "text", text: chunk.message.content };
       if (chunk.done) {
         const usage = usageOf(chunk);
         if (usage) opts.onUsage?.(usage);
@@ -108,7 +119,8 @@ export async function completeChat(
   messages: ChatTurn[],
   timeoutMs = 20_000,
 ): Promise<{ text: string; usage: TokenUsage | null }> {
-  const res = await post({ model, messages, stream: false }, AbortSignal.timeout(timeoutMs));
+  // Titles don't need reasoning; asking for none keeps them quick and cheap.
+  const res = await post({ model, messages, stream: false, think: false }, AbortSignal.timeout(timeoutMs));
   const body = (await res.json()) as Chunk;
   return { text: body.message?.content ?? "", usage: usageOf(body) };
 }

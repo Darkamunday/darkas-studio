@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { useI18n } from "@/lib/i18n/client";
+import { fmt } from "@/lib/i18n/format";
 import { Markdown } from "./markdown";
 import { CopyAction } from "./copy-action";
 import type { UiMessage } from "./use-chat-stream";
@@ -29,6 +31,8 @@ export function MessageList({
           ) : (
             <AssistantMessage
               content={msg.content}
+              thinking={msg.thinking}
+              thinkingMs={msg.thinkingMs}
               live={streaming && i === last}
               onRegenerate={!streaming && i === last ? onRegenerate : undefined}
             />
@@ -60,7 +64,19 @@ function UserMessage({ content }: { content: string }) {
   );
 }
 
-function AssistantMessage({ content, live, onRegenerate }: { content: string; live: boolean; onRegenerate?: () => void }) {
+function AssistantMessage({
+  content,
+  thinking,
+  thinkingMs,
+  live,
+  onRegenerate,
+}: {
+  content: string;
+  thinking?: string;
+  thinkingMs?: number | null;
+  live: boolean;
+  onRegenerate?: () => void;
+}) {
   const { m } = useI18n();
   return (
     <div className="flex gap-3">
@@ -72,12 +88,13 @@ function AssistantMessage({ content, live, onRegenerate }: { content: string; li
       </span>
       <div className="min-w-0 flex-1 pt-0.5">
         <span className="sr-only">{m.chat.assistant}</span>
+        {thinking && <ThinkingBlock text={thinking} ms={thinkingMs ?? null} active={live && !content} />}
         {content ? (
           <>
             <Markdown content={content} />
             {live && <span aria-hidden className="mt-1 inline-block h-4 w-1.5 animate-pulse rounded-sm bg-pink align-middle" />}
           </>
-        ) : live ? (
+        ) : live && !thinking ? (
           <TypingDots label={m.chat.thinking} />
         ) : null}
         {!live && content && (
@@ -127,6 +144,46 @@ function RegenerateIcon() {
     <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" />
     </svg>
+  );
+}
+
+/**
+ * The model's reasoning: open and streaming while it thinks, folded to "Thought for 6s" once the
+ * answer starts. Readers can open or close it whenever they like.
+ */
+function ThinkingBlock({ text, ms, active }: { text: string; ms: number | null; active: boolean }) {
+  const { m } = useI18n();
+  const [toggled, setToggled] = useState<boolean | null>(null);
+  const open = toggled ?? active;
+  const label = active
+    ? m.chat.thinking
+    : ms !== null && ms >= 1000
+      ? fmt(m.chat.thoughtFor, { s: Math.round(ms / 1000) })
+      : m.chat.thoughtBriefly;
+
+  return (
+    <div className="mb-3">
+      <button
+        type="button"
+        onClick={() => setToggled(!open)}
+        aria-expanded={open}
+        title={open ? m.chat.thoughtHide : m.chat.thoughtShow}
+        className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface/60 px-3 py-1 text-xs text-muted transition hover:border-line-strong hover:text-fg"
+      >
+        <svg aria-hidden viewBox="0 0 24 24" className={`h-3.5 w-3.5 ${active ? "animate-pulse text-pink" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1 2V16h5.2v-.2c0-.8.4-1.5 1-2A6 6 0 0 0 12 3Z" />
+        </svg>
+        <span>{label}</span>
+        <svg aria-hidden viewBox="0 0 24 24" className={`h-3 w-3 transition ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+      {open && (
+        <div className="mt-2 max-h-72 overflow-y-auto whitespace-pre-wrap break-words border-l-2 border-violet/40 pl-3 text-sm leading-relaxed text-subtle">
+          {text}
+        </div>
+      )}
+    </div>
   );
 }
 

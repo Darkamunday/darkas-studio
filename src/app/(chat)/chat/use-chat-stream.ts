@@ -9,9 +9,12 @@ export type UiMessage = {
   id: number | null;
   role: "user" | "assistant";
   content: string;
+  /** The model's reasoning before replying, and how long it took (assistant messages only). */
+  thinking?: string;
+  thinkingMs?: number | null;
 };
 
-type Request = { conversationId?: number; content?: string; regenerate?: true; model?: string };
+type Request = { conversationId?: number; content?: string; regenerate?: true; model?: string; think?: boolean };
 
 type Handlers = {
   onConversation?: (id: number, isNew: boolean) => void;
@@ -90,12 +93,15 @@ export function useChatStream(initial: UiMessage[], conversationId: number | nul
                 setMessages((list) => list.map((m) => (m.key === userKey ? { ...m, id } : m)));
               }
               break;
+            case "thinking":
+              patchLast((m) => ({ ...m, thinking: (m.thinking ?? "") + event.text }));
+              break;
             case "delta":
               gotReply = true;
               patchLast((m) => ({ ...m, content: m.content + event.text }));
               break;
             case "done":
-              patchLast((m) => ({ ...m, id: event.messageId }));
+              patchLast((m) => ({ ...m, id: event.messageId, thinkingMs: event.thinkingMs }));
               break;
             case "title":
               h.onTitle?.(event.title);
@@ -111,7 +117,8 @@ export function useChatStream(initial: UiMessage[], conversationId: number | nul
     } finally {
       abortRef.current = null;
       setStreaming(false);
-      // Drop an empty reply bubble (stopped or failed before any text).
+      // Drop a reply bubble with no answer text (stopped or failed before any — even mid-thinking);
+      // the server doesn't keep those either.
       if (!gotReply) setMessages((list) => (list.at(-1)?.role === "assistant" && !list.at(-1)!.content ? list.slice(0, -1) : list));
       h.onFinish?.();
     }
@@ -119,7 +126,7 @@ export function useChatStream(initial: UiMessage[], conversationId: number | nul
   }, []);
 
   const send = useCallback(
-    (content: string, model?: string) => {
+    (content: string, model?: string, think?: boolean) => {
       const userKey = newKey();
       const before = messagesRef.current;
       setMessages((list) => [
@@ -127,20 +134,20 @@ export function useChatStream(initial: UiMessage[], conversationId: number | nul
         { key: userKey, id: null, role: "user", content },
         { key: newKey(), id: null, role: "assistant", content: "" },
       ]);
-      return run({ conversationId: idRef.current ?? undefined, content, model }, userKey, before);
+      return run({ conversationId: idRef.current ?? undefined, content, model, think }, userKey, before);
     },
     [run],
   );
 
   const regenerate = useCallback(
-    (model?: string) => {
+    (model?: string, think?: boolean) => {
       if (idRef.current === null) return Promise.resolve(false);
       const before = messagesRef.current;
       setMessages((list) => [
         ...(list.at(-1)?.role === "assistant" ? list.slice(0, -1) : list),
         { key: newKey(), id: null, role: "assistant", content: "" },
       ]);
-      return run({ conversationId: idRef.current, regenerate: true, model }, null, before);
+      return run({ conversationId: idRef.current, regenerate: true, model, think }, null, before);
     },
     [run],
   );

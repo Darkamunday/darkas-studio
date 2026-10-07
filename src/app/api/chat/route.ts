@@ -26,11 +26,13 @@ const Body = z.union([
     conversationId: z.number().int().positive().optional(),
     content: z.string().trim().min(1).max(MAX_MESSAGE_CHARS),
     model: z.string().optional(),
+    think: z.boolean().optional(),
   }),
   z.object({
     conversationId: z.number().int().positive(),
     regenerate: z.literal(true),
     model: z.string().optional(),
+    think: z.boolean().optional(),
   }),
 ]);
 
@@ -117,18 +119,31 @@ export async function POST(req: NextRequest) {
       send({ type: "meta", conversationId, userMessageId, usage: { sent: sentToday(user.id), cap } });
 
       let reply = "";
+      let thinking = "";
+      let thinkStart: number | null = null;
+      let thinkEnd: number | null = null;
       let messageId: number | null = null;
+      let thinkingMs: number | null = null;
       let usage: TokenUsage | null = null;
       try {
-        for await (const text of streamChat({
+        for await (const piece of streamChat({
           model: model.id,
           messages: prompt,
           numCtx: model.contextTokens,
+          // The Think toggle (on unless switched off), for models that can reason.
+          think: model.thinking ? body.think !== false : undefined,
           signal: req.signal,
           onUsage: (u) => (usage = u),
         })) {
-          reply += text;
-          send({ type: "delta", text });
+          if (piece.kind === "thinking") {
+            thinkStart ??= Date.now();
+            thinking += piece.text;
+            send({ type: "thinking", text: piece.text });
+          } else {
+            if (thinkStart !== null) thinkEnd ??= Date.now();
+            reply += piece.text;
+            send({ type: "delta", text: piece.text });
+          }
         }
       } catch (err) {
         if (!req.signal.aborted) {
@@ -137,14 +152,18 @@ export async function POST(req: NextRequest) {
         }
       } finally {
         // Keep whatever arrived — the whole reply, or the part before Stop or an error.
-        if (reply.trim()) messageId = addMessage(conversationId, "assistant", reply);
+        thinkingMs = thinkStart === null ? null : (thinkEnd ?? Date.now()) - thinkStart;
+        if (reply.trim()) {
+          messageId = addMessage(conversationId, "assistant", reply, thinking ? { text: thinking, ms: thinkingMs } : null);
+        }
         // Count what it cost. A reply cut short never reports its tokens, so those are estimated.
         if (usage) recordSpend(user.id, model.id, usage);
-        else if (reply || req.signal.aborted) {
-          recordSpend(user.id, model.id, { input: estimateTokens(prompt), output: Math.ceil(reply.length / 4) }, true);
+        else if (reply || thinking || req.signal.aborted) {
+          const output = Math.ceil((reply.length + thinking.length) / 4);
+          recordSpend(user.id, model.id, { input: estimateTokens(prompt), output }, true);
         }
       }
-      send({ type: "done", messageId });
+      send({ type: "done", messageId, thinkingMs });
 
       if (needsTitle) {
         const title = req.signal.aborted ? fallbackTitle(firstUserMessage) : await makeTitle(user.id, model.id, firstUserMessage);

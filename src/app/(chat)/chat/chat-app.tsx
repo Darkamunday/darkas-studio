@@ -9,7 +9,7 @@ import { MessageList } from "./messages";
 import { Composer } from "./composer";
 import { ModelPicker } from "./model-picker";
 import { InstructionsDialog } from "./instructions-dialog";
-import { CHAT_MODEL_COOKIE } from "@/config/chat";
+import { CHAT_MODEL_COOKIE, CHAT_THINK_COOKIE, findChatModel } from "@/config/chat";
 import { useChatStream, type UiMessage } from "./use-chat-stream";
 
 export function ChatApp({
@@ -19,6 +19,7 @@ export function ChatApp({
   initialModel,
   initialUsage,
   initialInstructions,
+  initialThink,
   isAdmin,
 }: {
   initialConversations: SidebarConversation[];
@@ -28,6 +29,8 @@ export function ChatApp({
   /** Sends today and the daily cap (null = no cap). */
   initialUsage: { sent: number; cap: number | null };
   initialInstructions: string;
+  /** The Think toggle, as this browser last left it. */
+  initialThink: boolean;
   isAdmin: boolean;
 }) {
   const { locale, m } = useI18n();
@@ -38,6 +41,8 @@ export function ChatApp({
   const [error, setError] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [model, setModel] = useState(initialModel);
+  const [think, setThink] = useState(initialThink);
+  const canThink = !!findChatModel(model)?.thinking;
   const [usage, setUsage] = useState(initialUsage);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [instructions, setInstructions] = useState(initialInstructions);
@@ -50,6 +55,12 @@ export function ChatApp({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [drawerOpen]);
+
+  function toggleThink() {
+    const next = !think;
+    setThink(next);
+    document.cookie = `${CHAT_THINK_COOKIE}=${next ? "1" : "0"}; path=/; max-age=31536000; samesite=lax`;
+  }
 
   function pickModel(id: string) {
     setModel(id);
@@ -136,14 +147,14 @@ export function ChatApp({
     setError(null);
     setDraft("");
     setStick(true);
-    const accepted = await chat.send(content, model);
+    const accepted = await chat.send(content, model, think);
     if (!accepted) setDraft((d) => d || content); // refused (e.g. daily limit): give their text back
   }
 
   function regenerate() {
     setError(null);
     setStick(true);
-    void chat.regenerate(model);
+    void chat.regenerate(model, think);
   }
 
   // Stable, so the dialog's Escape listener isn't re-attached on every render.
@@ -250,6 +261,26 @@ export function ChatApp({
             </svg>
           </button>
           <h1 className="min-w-0 flex-1 truncate text-sm font-medium text-muted">{activeTitle}</h1>
+          {canThink && (
+            <button
+              type="button"
+              onClick={toggleThink}
+              disabled={chat.streaming}
+              role="switch"
+              aria-checked={think}
+              title={think ? m.chat.thinkOn : m.chat.thinkOff}
+              className={`inline-flex h-[34px] items-center gap-1.5 rounded-xl border px-2.5 text-sm transition disabled:opacity-60 ${
+                think
+                  ? "border-pink/50 bg-pink/12 text-accent-fg"
+                  : "border-line bg-surface text-subtle hover:border-line-strong hover:text-fg"
+              }`}
+            >
+              <svg aria-hidden viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1 2V16h5.2v-.2c0-.8.4-1.5 1-2A6 6 0 0 0 12 3Z" />
+              </svg>
+              <span className="max-sm:sr-only">{m.chat.think}</span>
+            </button>
+          )}
           <ModelPicker value={model} onChange={pickModel} disabled={chat.streaming} isAdmin={isAdmin} />
         </div>
 

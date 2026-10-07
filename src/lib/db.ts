@@ -234,6 +234,12 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX chat_spend_day ON chat_spend(day);
   `,
+  // 13: a reply's reasoning, for models that think before answering (shown folded above the reply,
+  // never sent back to the model), and how long the thinking took.
+  `
+  ALTER TABLE messages ADD COLUMN thinking TEXT;
+  ALTER TABLE messages ADD COLUMN thinking_ms INTEGER;
+  `,
 ];
 
 function open(): DatabaseSync {
