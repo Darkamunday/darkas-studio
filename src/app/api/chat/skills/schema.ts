@@ -8,7 +8,8 @@ import {
 } from "@/config/chat";
 
 export const SkillFields = z.object({
-  slug: z.string().trim().toLowerCase().regex(SKILL_SLUG),
+  // "/image" is built in (makes a picture), so no skill can take it.
+  slug: z.string().trim().toLowerCase().regex(SKILL_SLUG).refine((s) => s !== "image"),
   name: z.string().trim().min(1).max(SKILL_NAME_MAX),
   emoji: z.enum(SKILL_EMOJI as [string, ...string[]]),
   description: z.string().trim().max(SKILL_DESCRIPTION_MAX).default(""),

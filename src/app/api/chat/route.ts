@@ -19,7 +19,31 @@ import { getProject } from "@/lib/chat/projects";
 import { setPinnedSkills, skillsForMessage, slashSlug } from "@/lib/chat/skills";
 import { getMasterPrompt } from "@/lib/chat/master-prompt";
 import type { ChatEvent } from "@/lib/chat/events";
-import { OllamaError, completeChat, streamChat, type ChatTurn, type TokenUsage } from "@/lib/chat/ollama";
+import {
+  OllamaError,
+  completeChat,
+  streamChat,
+  type ChatTurn,
+  type TokenUsage,
+  type ToolCall,
+  type ToolDef,
+} from "@/lib/chat/ollama";
+import {
+  attachImagesToMessage,
+  canMakeImage,
+  hasImageAccess,
+  imageCapFor,
+  listImages,
+  startImage,
+} from "@/lib/chat/images";
+import {
+  DEFAULT_IMAGE_MODEL,
+  IMAGE_ASPECTS,
+  MAX_IMAGE_PROMPT_CHARS,
+  allowedImageModel,
+  isImageAspect,
+  type ImageAspect,
+} from "@/config/images";
 import {
   CHAT_MODELS,
   DEFAULT_MODEL,
@@ -31,6 +55,15 @@ import {
 } from "@/config/chat";
 
 export const dynamic = "force-dynamic";
+
+/** Image settings from the browser: the model and shape picked, and whether to improve the prompt first. */
+const ImagePrefs = z
+  .object({
+    model: z.string().optional(),
+    aspect: z.enum(Object.keys(IMAGE_ASPECTS) as [ImageAspect, ...ImageAspect[]]).optional(),
+    improve: z.boolean().optional(),
+  })
+  .optional();
 
 const Body = z.union([
   z.object({
@@ -44,16 +77,48 @@ const Body = z.union([
     projectId: z.number().int().positive().optional(),
     /** Skills pinned before a new chat existed; pinned when it's created. */
     skillIds: z.array(z.number().int().positive()).max(50).optional(),
+    image: ImagePrefs,
   }),
   z.object({
     conversationId: z.number().int().positive(),
     regenerate: z.literal(true),
     model: z.string().optional(),
     think: z.boolean().optional(),
+    image: ImagePrefs,
   }),
 ]);
 
 const TITLE_MAX = 60;
+
+/** The image tool offered to models that can call tools (when the person can make images). */
+const IMAGE_TOOL: ToolDef = {
+  type: "function",
+  function: {
+    name: "generate_image",
+    description:
+      "Create an image and show it to the person. Use it when they ask for a picture, drawing, artwork, photo, cover or visual — or clearly want to see something. Don't use it otherwise.",
+    parameters: {
+      type: "object",
+      properties: {
+        prompt: {
+          type: "string",
+          description:
+            "A detailed visual description for the image generator: subject, appearance (use any character details from the reference files), setting, lighting, composition and style.",
+        },
+        aspect: { type: "string", enum: Object.keys(IMAGE_ASPECTS), description: "Shape: square (default), portrait or landscape." },
+      },
+      required: ["prompt"],
+    },
+  },
+};
+
+const IMPROVE_IMAGE_PROMPT = `Rewrite the person's image request as one detailed prompt for an image generator: the subject, their appearance (use any character details from the reference files above), the setting, lighting, composition and art style. Stay true to what they asked for. Under 120 words. Reply with the prompt only.`;
+
+/** The system prompt's list of images already made in this chat (see systemPrompt's `images`). */
+const imagesNote = (descriptions: string[]) => systemPrompt({ base: "", images: descriptions });
+
+/** Drop any "[Image shown…]"-style note a model imitates into its reply; people never need to see it. */
+const stripImageNotes = (text: string) => text.replace(/^\[Image (?:shown|made)[^\n]*$\n?/gim, "").trim();
 
 /** Room kept for the conversation itself when reference files fill the model's window. */
 const MIN_CONVERSATION_TOKENS = 2_000;
@@ -139,6 +204,19 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "files_too_big", model: model.label }, { status: 413 });
   }
 
+  // Images: "/image <description>" makes one directly; otherwise models that can call tools may make
+  // one themselves. Both need image access and allowance left today.
+  const imageCommand = asked ? /^\/image(?:\s+([\s\S]*))?$/.exec(asked) : null;
+  const imagePrompt = imageCommand?.[1]?.trim().slice(0, MAX_IMAGE_PROMPT_CHARS) ?? "";
+  const imageModel = allowedImageModel(body.image?.model, isAdmin)?.id ?? DEFAULT_IMAGE_MODEL;
+  const imageAspect: ImageAspect = body.image?.aspect ?? "square";
+  if (imageCommand) {
+    if (!imagePrompt) return Response.json({ error: "bad_request" }, { status: 400 });
+    if (!hasImageAccess(user.id)) return Response.json({ error: "images_disabled" }, { status: 403 });
+    if (!canMakeImage(user.id)) return Response.json({ error: "image_cap", cap: imageCapFor(user.id) }, { status: 429 });
+  }
+  const offerImageTool = !imageCommand && !!model.tools && canMakeImage(user.id);
+
   // Save the user's side first, so it's kept even if the model never answers.
   let userMessageId: number | null = null;
   const conversationId = transaction(() => {
@@ -155,10 +233,18 @@ export async function POST(req: NextRequest) {
   if (newFileIds.length) setAttachedFiles(user.id, conversationId, newFileIds);
   if (newSkillIds.length) setPinnedSkills(user.id, { conversationId }, newSkillIds);
 
-  const history = listMessages(user.id, conversationId).map<ChatTurn>((m) => ({ role: m.role, content: m.content }));
+  // Image-only replies have no text to send; the images themselves are listed in the system prompt.
+  const history = listMessages(user.id, conversationId)
+    .map<ChatTurn>((m) => ({ role: m.role, content: m.role === "assistant" ? stripImageNotes(m.content) : m.content }))
+    .filter((m) => m.role !== "assistant" || m.content);
   if (history.at(-1)?.role !== "user") return Response.json({ error: "nothing_to_answer" }, { status: 400 });
 
-  const prompt = buildPrompt(system, history, model);
+  // The model can't see images, so ones it already made are described in the system prompt.
+  const madeImages = listImages(user.id, conversationId)
+    .filter((i) => i.status === "ready" && i.messageId !== null)
+    .slice(-10)
+    .map((i) => i.prompt.slice(0, 300));
+  const prompt = buildPrompt(madeImages.length ? `${system}${imagesNote(madeImages)}` : system, history, model);
   const needsTitle = !conversation.title;
   const firstUserMessage = history.find((m) => m.role === "user")!.content;
 
@@ -183,43 +269,114 @@ export async function POST(req: NextRequest) {
       let thinkEnd: number | null = null;
       let messageId: number | null = null;
       let thinkingMs: number | null = null;
-      let usage: TokenUsage | null = null;
+      const imageIds: number[] = [];
+
+      /** Make one image, telling the browser as it starts and as it finishes. */
+      const makeImage = async (description: string, aspect: ImageAspect) => {
+        const { image, done } = startImage({ userId: user.id, conversationId, prompt: description, modelId: imageModel, aspect });
+        imageIds.push(image.id);
+        send({ type: "image", image });
+        const finished = await done;
+        send({ type: "image", image: finished });
+        return finished;
+      };
+
+      /** One streamed model call; text and reasoning go to the browser as they arrive. */
+      const streamTurn = async (messages: ChatTurn[], tools?: ToolDef[]) => {
+        const calls: ToolCall[] = [];
+        let usage: TokenUsage | null = null;
+        let output = "";
+        try {
+          for await (const piece of streamChat({
+            model: model.id,
+            messages,
+            numCtx: model.contextTokens,
+            // The Think toggle (on unless switched off), for models that can reason.
+            think: model.thinking ? body.think !== false : undefined,
+            tools,
+            signal: req.signal,
+            onUsage: (u) => (usage = u),
+          })) {
+            if (piece.kind === "tool_call") calls.push(piece.call);
+            else if (piece.kind === "thinking") {
+              thinkStart ??= Date.now();
+              thinking += piece.text;
+              output += piece.text;
+              send({ type: "thinking", text: piece.text });
+            } else {
+              if (thinkStart !== null) thinkEnd ??= Date.now();
+              reply += piece.text;
+              output += piece.text;
+              send({ type: "delta", text: piece.text });
+            }
+          }
+        } finally {
+          // Count what it cost. A reply cut short never reports its tokens, so those are estimated.
+          if (usage) recordSpend(user.id, model.id, usage);
+          else if (output || req.signal.aborted) {
+            recordSpend(user.id, model.id, { input: estimateTokens(messages), output: Math.ceil(output.length / 4) }, true);
+          }
+        }
+        return calls;
+      };
+
       try {
-        for await (const piece of streamChat({
-          model: model.id,
-          messages: prompt,
-          numCtx: model.contextTokens,
-          // The Think toggle (on unless switched off), for models that can reason.
-          think: model.thinking ? body.think !== false : undefined,
-          signal: req.signal,
-          onUsage: (u) => (usage = u),
-        })) {
-          if (piece.kind === "thinking") {
-            thinkStart ??= Date.now();
-            thinking += piece.text;
-            send({ type: "thinking", text: piece.text });
-          } else {
-            if (thinkStart !== null) thinkEnd ??= Date.now();
-            reply += piece.text;
-            send({ type: "delta", text: piece.text });
+        if (imageCommand) {
+          // "/image": straight to the image generator, optionally with the description improved first.
+          let description = imagePrompt;
+          if (body.image?.improve) {
+            try {
+              const { text, usage } = await completeChat(model.id, [
+                { role: "system", content: `${system}\n\n${IMPROVE_IMAGE_PROMPT}` },
+                { role: "user", content: imagePrompt },
+              ]);
+              if (usage) recordSpend(user.id, model.id, usage);
+              if (text.trim()) description = text.trim().replace(/^["“]|["”]$/g, "").slice(0, MAX_IMAGE_PROMPT_CHARS);
+            } catch (err) {
+              console.error("[chat] improving the image prompt failed", err);
+            }
+          }
+          await makeImage(description, imageAspect);
+        } else {
+          const calls = await streamTurn(prompt, offerImageTool ? [IMAGE_TOOL] : undefined);
+          const imageCalls = calls.filter((c) => c.function.name === "generate_image").slice(0, 2);
+          if (imageCalls.length && !req.signal.aborted) {
+            const results: ChatTurn[] = [];
+            for (const call of imageCalls) {
+              const args = call.function.arguments ?? {};
+              const description = String(args.prompt ?? "").trim().slice(0, MAX_IMAGE_PROMPT_CHARS);
+              let result: string;
+              if (!description) result = "No image made: the description was empty.";
+              else if (!canMakeImage(user.id)) result = "No image made: the person has reached today's image limit. Tell them kindly.";
+              else {
+                const made = await makeImage(description, isImageAspect(args.aspect) ? args.aspect : imageAspect);
+                result =
+                  made.status === "ready"
+                    ? `Done: the image is now shown to the person (prompt used: "${description}"). You can't see it, so don't describe details as if you could — briefly say what you made and offer to adjust it.`
+                    : "The image couldn't be made this time. Apologise briefly and suggest trying again.";
+              }
+              results.push({ role: "tool", content: result, tool_name: "generate_image" });
+            }
+            // Let the model finish its reply now it knows how the image went (no more tools this turn).
+            if (reply.trim()) {
+              reply += "\n\n";
+              send({ type: "delta", text: "\n\n" });
+            }
+            await streamTurn([...prompt, { role: "assistant", content: reply.trim(), tool_calls: imageCalls }, ...results]);
           }
         }
       } catch (err) {
         if (!req.signal.aborted) {
+          const reason = err instanceof OllamaError ? err.reason : "generic";
           if (!(err instanceof OllamaError)) console.error("[chat] stream failed", err);
-          send({ type: "error", reason: err instanceof OllamaError ? err.reason : "generic" });
+          send({ type: "error", reason });
         }
       } finally {
-        // Keep whatever arrived — the whole reply, or the part before Stop or an error.
+        // Keep whatever arrived — the whole reply, the part before Stop or an error, and any images.
         thinkingMs = thinkStart === null ? null : (thinkEnd ?? Date.now()) - thinkStart;
-        if (reply.trim()) {
-          messageId = addMessage(conversationId, "assistant", reply, thinking ? { text: thinking, ms: thinkingMs } : null);
-        }
-        // Count what it cost. A reply cut short never reports its tokens, so those are estimated.
-        if (usage) recordSpend(user.id, model.id, usage);
-        else if (reply || thinking || req.signal.aborted) {
-          const output = Math.ceil((reply.length + thinking.length) / 4);
-          recordSpend(user.id, model.id, { input: estimateTokens(prompt), output }, true);
+        if (reply.trim() || imageIds.length) {
+          messageId = addMessage(conversationId, "assistant", stripImageNotes(reply), thinking ? { text: thinking, ms: thinkingMs } : null);
+          attachImagesToMessage(imageIds, messageId);
         }
       }
       send({ type: "done", messageId, thinkingMs });

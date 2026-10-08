@@ -8,6 +8,8 @@ import { getConversation, getInstructions, listConversations, listMessages } fro
 import { attachedFileIds, listFiles, toClientFile } from "@/lib/chat/files";
 import { getProject, listProjects, toClientProject } from "@/lib/chat/projects";
 import { conversationSkillIds, listSkills, toClientSkill } from "@/lib/chat/skills";
+import { hasImageAccess, listImages } from "@/lib/chat/images";
+import { DEFAULT_IMAGE_MODEL, IMAGE_PREFS_COOKIE, allowedImageModel, isImageAspect } from "@/config/images";
 import { getI18n } from "@/lib/i18n/server";
 import { card } from "@/components/ui";
 import { ChatApp } from "../chat-app";
@@ -68,6 +70,7 @@ export default async function ChatPage({ params, searchParams }: PageProps<"/cha
     updated_at,
     project_id,
   }));
+  const images = id ? listImages(user.id, id) : [];
   const messages = id
     ? listMessages(user.id, id)
         .filter((msg) => msg.role !== "system")
@@ -78,6 +81,7 @@ export default async function ChatPage({ params, searchParams }: PageProps<"/cha
           content: msg.content,
           thinking: msg.thinking ?? undefined,
           thinkingMs: msg.thinking_ms,
+          images: images.filter((img) => img.messageId === msg.id),
         }))
     : [];
 
@@ -97,7 +101,22 @@ export default async function ChatPage({ params, searchParams }: PageProps<"/cha
       projectId={projectId}
       initialSkills={listSkills(user.id).map(toClientSkill)}
       initialPinnedSkills={id ? conversationSkillIds(user.id, id) : []}
+      imageAccess={hasImageAccess(user.id)}
+      initialImagePrefs={imagePrefs(jar.get(IMAGE_PREFS_COOKIE)?.value, isAdmin)}
       isAdmin={isAdmin}
     />
   );
+}
+
+/** The image settings this browser picked last (model checked against what this person may use). */
+function imagePrefs(raw: string | undefined, isAdmin: boolean) {
+  let saved: { model?: unknown; aspect?: unknown; improve?: unknown } = {};
+  try {
+    saved = raw ? JSON.parse(raw) : {};
+  } catch {}
+  return {
+    model: allowedImageModel(saved.model, isAdmin)?.id ?? DEFAULT_IMAGE_MODEL,
+    aspect: isImageAspect(saved.aspect) ? saved.aspect : ("square" as const),
+    improve: saved.improve === true,
+  };
 }

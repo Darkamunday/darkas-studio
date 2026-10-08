@@ -3,6 +3,7 @@ import { z } from "zod";
 import { CHAT_TITLE_MAX } from "@/config/chat";
 import { requireChatApi } from "@/lib/chat/access";
 import { moveConversation } from "@/lib/chat/projects";
+import { removeConversationImages } from "@/lib/chat/images";
 import { deleteConversation, getConversation, listMessages, renameConversation } from "@/lib/chat/store";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +42,10 @@ export async function PATCH(req: NextRequest, ctx: RouteContext<"/api/chat/conve
 export async function DELETE(_req: NextRequest, ctx: RouteContext<"/api/chat/conversations/[id]">) {
   const auth = await requireChatApi();
   if (auth.error) return auth.error;
-  if (!deleteConversation(auth.user.id, Number((await ctx.params).id))) return notFound();
+  const id = Number((await ctx.params).id);
+  if (!getConversation(auth.user.id, id)) return notFound();
+  // Image files live on disk; the rows go with the chat.
+  await removeConversationImages(auth.user.id, id);
+  if (!deleteConversation(auth.user.id, id)) return notFound();
   return Response.json({ ok: true });
 }

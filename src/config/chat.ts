@@ -20,15 +20,20 @@ export type ChatModel = {
    * Leave off for models that can't (the toggle is hidden for them).
    */
   thinking?: boolean;
+  /**
+   * Can call tools reliably — currently: decide by itself to make an image. Leave off for models that
+   * pretend instead (they still get the Image button and /image).
+   */
+  tools?: boolean;
 };
 
 // Prices from Ollama Cloud's price list (Oct 2026), standard rate — off-peak discounts aren't applied,
 // so spend figures err on the high side.
 export const CHAT_MODELS: ChatModel[] = [
-  { id: "deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash", contextTokens: 64_000, price: { input: 0.3, output: 1.2 }, thinking: true },
-  { id: "gemma4:31b", label: "Gemma 4 31B", contextTokens: 32_000, price: { input: 0.14, output: 0.4 }, thinking: true },
-  { id: "mistral-large-3:675b", label: "Mistral Large 3", contextTokens: 32_000, price: { input: 0.5, output: 1.5 } },
-  { id: "glm-5.3", label: "GLM 5.3", contextTokens: 64_000, price: { input: 1.4, output: 4.4 }, adminOnly: true, thinking: true },
+  { id: "deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash", contextTokens: 64_000, price: { input: 0.3, output: 1.2 }, thinking: true, tools: true },
+  { id: "gemma4:31b", label: "Gemma 4 31B", contextTokens: 32_000, price: { input: 0.14, output: 0.4 }, thinking: true, tools: true },
+  { id: "mistral-large-3:675b", label: "Mistral Large 3", contextTokens: 32_000, price: { input: 0.5, output: 1.5 }, tools: true },
+  { id: "glm-5.3", label: "GLM 5.3", contextTokens: 64_000, price: { input: 1.4, output: 4.4 }, adminOnly: true, thinking: true, tools: true },
   { id: "kimi-k3", label: "Kimi K3", contextTokens: 64_000, price: { input: 3, output: 15 }, adminOnly: true, thinking: true },
 ];
 

@@ -6,6 +6,8 @@ import { fmt } from "@/lib/i18n/format";
 import { Markdown } from "./markdown";
 import { CopyAction } from "./copy-action";
 import type { UiMessage } from "./use-chat-stream";
+import { ImageCard } from "./image-card";
+import type { ClientImage } from "@/lib/chat/images";
 
 export function MessageList({
   messages,
@@ -13,9 +15,12 @@ export function MessageList({
   onRegenerate,
   onMakeSong,
   makingSong,
+  onImageAgain,
 }: {
   messages: UiMessage[];
   streaming: boolean;
+  /** Make another image like this one. */
+  onImageAgain?: (image: ClientImage) => void;
   /** Turn a saved reply into a song on the Create page. */
   onMakeSong?: (messageId: number) => void;
   /** The reply currently being turned into a song, if any. */
@@ -37,6 +42,8 @@ export function MessageList({
           ) : (
             <AssistantMessage
               content={msg.content}
+              images={msg.images}
+              onImageAgain={streaming ? undefined : onImageAgain}
               thinking={msg.thinking}
               thinkingMs={msg.thinkingMs}
               live={streaming && i === last}
@@ -86,6 +93,8 @@ function SlashCommand({ content }: { content: string }) {
 
 function AssistantMessage({
   content,
+  images = [],
+  onImageAgain,
   thinking,
   thinkingMs,
   live,
@@ -94,6 +103,8 @@ function AssistantMessage({
   makingSong,
 }: {
   content: string;
+  images?: ClientImage[];
+  onImageAgain?: (image: ClientImage) => void;
   thinking?: string;
   thinkingMs?: number | null;
   live: boolean;
@@ -102,6 +113,8 @@ function AssistantMessage({
   makingSong?: boolean;
 }) {
   const { m } = useI18n();
+  // Hide any "[Image shown…]" note a model imitates (the server strips it before saving, too).
+  const shown = content.replace(/^\[Image (?:shown|made)[^\n]*$\n?/gim, "").trim();
   return (
     <div className="flex gap-3">
       <span
@@ -113,15 +126,18 @@ function AssistantMessage({
       <div className="min-w-0 flex-1 pt-0.5">
         <span className="sr-only">{m.chat.assistant}</span>
         {thinking && <ThinkingBlock text={thinking} ms={thinkingMs ?? null} active={live && !content} />}
-        {content ? (
+        {shown ? (
           <>
-            <Markdown content={content} />
+            <Markdown content={shown} />
             {live && <span aria-hidden className="mt-1 inline-block h-4 w-1.5 animate-pulse rounded-sm bg-pink align-middle" />}
           </>
-        ) : live && !thinking ? (
+        ) : live && !thinking && images.length === 0 ? (
           <TypingDots label={m.chat.thinking} />
         ) : null}
-        {!live && content && (
+        {images.map((img) => (
+          <ImageCard key={img.id} image={img} onAgain={onImageAgain} />
+        ))}
+        {!live && shown && (
           <div className="-ml-1.5 mt-2 flex items-center gap-0.5">
             <CopyAction getText={() => content} label={m.chat.copyMessage} />
             {onRegenerate && (

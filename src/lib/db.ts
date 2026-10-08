@@ -328,6 +328,41 @@ const MIGRATIONS: string[] = [
   INSERT INTO skills (slug, name, emoji, description, instructions) VALUES ('style', 'Style prompt', '🎛️', 'Turns a vibe into a tight style prompt for the music generator.', 'Turn the person''s description into a style prompt for an AI music generator. Reply with the style prompt on one line: comma-separated descriptors under 200 characters covering genre and subgenre, mood, tempo (BPM if useful), key instruments, vocal type and delivery, and production feel. Then give two alternatives on their own lines — one safer, one bolder. Never use artist names. No extra commentary unless asked.');
   INSERT INTO skills (slug, name, emoji, description, instructions) VALUES ('rhymes', 'Rhyme helper', '🎯', 'Rhymes, near-rhymes and line ideas for a word or line.', 'Help the person find rhymes. For the word or line they give, list perfect rhymes, near (slant) rhymes and multi-syllable rhymes, then three to five example lines that land a rhyme naturally in their context and mood. Use short headings, keep it easy to scan, and skip obscure words nobody would sing.');
   `,
+  // 18: images in chat (Comfy Cloud). Off per user until an admin enables it (admins always have it);
+  // image_daily_cap NULL means the default in src/config/images.ts. Each image hangs off the chat and
+  // (once written) the assistant message it belongs to; the file lives in MEDIA_DIR/chat-images.
+  // gpu_seconds / credits are what Comfy reports the job used (filled in once it's billed).
+  // image_usage counts images per Europe/London day, kept apart so deleting a chat doesn't hand back allowance.
+  `
+  ALTER TABLE users ADD COLUMN image_enabled INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE users ADD COLUMN image_daily_cap INTEGER;
+
+  CREATE TABLE chat_images (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    message_id      INTEGER REFERENCES messages(id) ON DELETE SET NULL,
+    prompt          TEXT NOT NULL,
+    model           TEXT NOT NULL,
+    aspect          TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'ready', 'failed')),
+    comfy_job_id    TEXT,
+    file_path       TEXT,
+    error           TEXT,
+    gpu_seconds     REAL,
+    credits         REAL,
+    created_at      INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+  CREATE INDEX chat_images_conversation ON chat_images(conversation_id);
+  CREATE INDEX chat_images_user ON chat_images(user_id, created_at);
+
+  CREATE TABLE image_usage (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    day     TEXT NOT NULL,
+    count   INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, day)
+  );
+  `,
 ];
 
 function open(): DatabaseSync {

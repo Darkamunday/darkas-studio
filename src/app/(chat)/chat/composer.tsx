@@ -14,6 +14,7 @@ export function Composer({
   note,
   inputRef,
   skills = [],
+  onImage,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -26,6 +27,8 @@ export function Composer({
   inputRef?: RefObject<HTMLTextAreaElement | null>;
   /** Skills offered when the message starts with "/". */
   skills?: { slug: string; name: string; emoji: string; description: string }[];
+  /** Open "Make an image" (shown when the person can make images). */
+  onImage?: () => void;
 }) {
   const { m } = useI18n();
   const ownRef = useRef<HTMLTextAreaElement>(null);
@@ -102,6 +105,18 @@ export function Composer({
         </div>
       )}
       <div className="flex items-end gap-2 rounded-3xl border border-line bg-surface p-2 shadow-card transition focus-within:border-pink focus-within:ring-4 focus-within:ring-pink/15">
+        {onImage && (
+          <button
+            type="button"
+            onClick={onImage}
+            disabled={streaming}
+            aria-label={m.chat.imageTitle}
+            title={m.chat.imageTitle}
+            className="grid h-10 w-10 flex-none place-items-center rounded-2xl text-lg transition hover:bg-surface-2 disabled:opacity-50"
+          >
+            <span aria-hidden>🎨</span>
+          </button>
+        )}
         <textarea
           ref={ref}
           value={value}

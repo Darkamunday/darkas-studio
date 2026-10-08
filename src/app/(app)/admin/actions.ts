@@ -87,6 +87,28 @@ export async function setChatForAll(formData: FormData) {
   revalidatePath("/admin", "layout");
 }
 
+// ---- images in chat ----------------------------------------------------------------------
+
+export async function setImageEnabled(formData: FormData) {
+  await requireAdmin();
+  const id = Number(formData.get("userId"));
+  if (!Number.isInteger(id)) return;
+  db.prepare("UPDATE users SET image_enabled = ? WHERE id = ?").run(formData.get("enabled") === "1" ? 1 : 0, id);
+  revalidatePath("/admin", "layout");
+}
+
+/** Blank clears the personal image limit, falling back to the default in src/config/images.ts. */
+export async function setImageCap(formData: FormData) {
+  await requireAdmin();
+  const id = Number(formData.get("userId"));
+  if (!Number.isInteger(id)) return;
+  const raw = String(formData.get("cap") ?? "").trim();
+  const cap = raw === "" ? null : Math.floor(Number(raw));
+  if (cap !== null && !(Number.isFinite(cap) && cap >= 0 && cap <= 10_000)) return;
+  db.prepare("UPDATE users SET image_daily_cap = ? WHERE id = ?").run(cap, id);
+  revalidatePath("/admin", "layout");
+}
+
 /** The chat master prompt, for everyone. `reset` (or blank) goes back to the default in the config. */
 export async function saveMasterPrompt(formData: FormData) {
   const admin = await requireAdmin();

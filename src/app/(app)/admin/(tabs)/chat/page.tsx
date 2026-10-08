@@ -7,7 +7,9 @@ import { spendByModel, spendByUser, spendTotals } from "@/lib/chat/spend";
 import { getI18n } from "@/lib/i18n/server";
 import { LOCALE_INFO } from "@/lib/i18n/config";
 import { fmt, plural } from "@/lib/i18n/format";
-import { setChatCap, setChatEnabled, setChatForAll } from "../../actions";
+import { setChatCap, setChatEnabled, setChatForAll, setImageCap, setImageEnabled } from "../../actions";
+import { comfyAccountMonthSpend, imageUsageByUser, reconcileUsage } from "@/lib/chat/images";
+import { DEFAULT_IMAGE_DAILY_CAP } from "@/config/images";
 import { ConfirmButton } from "../../confirm-button";
 import { MasterPromptForm } from "../../master-prompt-form";
 import { Badge, SmallButton, Stat } from "../../ui";
@@ -34,6 +36,10 @@ export default async function AdminChatPage() {
   const chatUsers = chatUsageByUser();
   const chatTotals = chatUsageTotals();
   const master = getMasterPrompt();
+  // Ask Comfy (together, never waiting more than 5s) what recent images used and the account's month so far.
+  const within = <T,>(p: Promise<T>, fallback: T) => Promise.race([p, new Promise<T>((r) => setTimeout(() => r(fallback), 5000))]);
+  const [, comfySpend] = await Promise.all([within(reconcileUsage().catch(() => {}), undefined), within(comfyAccountMonthSpend(), null)]);
+  const imageUsers = imageUsageByUser();
   const spend = spendTotals();
   const byModel = spendByModel();
   const byUser = spendByUser();
@@ -224,6 +230,93 @@ export default async function AdminChatPage() {
               : c.masterDefault
           }
         />
+      </section>
+
+      {/* ---- images ---- */}
+      <section className="rounded-3xl border border-line bg-surface shadow-card p-6">
+        <h2 className="text-lg font-semibold">{c.imagesHeading}</h2>
+        <p className="mt-1 text-sm text-muted">{c.imagesBlurb}</p>
+        {comfySpend !== null && (
+          <p className="mt-1 text-sm font-medium text-accent-fg">{fmt(c.comfyMonth, { usd: usd(comfySpend) })}</p>
+        )}
+        <div className="-mx-6 mt-4 overflow-x-auto px-6">
+          <table className="w-full min-w-[760px] text-left text-sm">
+            <thead className="whitespace-nowrap text-xs uppercase tracking-wide text-subtle">
+              <tr>
+                <th className="py-2 pr-4 font-medium">{a.colUser}</th>
+                <th className="py-2 pr-4 font-medium">{c.colImages}</th>
+                <th className="py-2 pr-4 font-medium">{c.colImageLimit}</th>
+                <th className="py-2 pr-4 text-right font-medium">{c.colImagesToday}</th>
+                <th className="py-2 pr-4 text-right font-medium">{c.spendMonth}</th>
+                <th className="py-2 pr-4 text-right font-medium">{c.colGpu}</th>
+                <th className="py-2 text-right font-medium">{c.colCredits}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {imageUsers.map((u) => {
+                const cap = u.is_admin ? null : (u.image_daily_cap ?? DEFAULT_IMAGE_DAILY_CAP);
+                return (
+                  <tr key={u.id}>
+                    <td className="py-2.5 pr-4">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="whitespace-nowrap font-medium">{u.username}</span>
+                        {u.is_admin ? <Badge tone="violet">{a.badgeAdmin}</Badge> : null}
+                      </div>
+                    </td>
+                    <td className="py-2.5 pr-4">
+                      {u.is_admin ? (
+                        <span className="text-xs text-subtle">{c.always}</span>
+                      ) : (
+                        <form action={setImageEnabled} className="flex items-center gap-2">
+                          <input type="hidden" name="userId" value={u.id} />
+                          <input type="hidden" name="enabled" value={u.image_enabled ? "0" : "1"} />
+                          <button
+                            role="switch"
+                            aria-checked={!!u.image_enabled}
+                            aria-label={`${c.colImages}: ${u.username}`}
+                            title={u.image_enabled ? c.turnOff : c.turnOn}
+                            className={`relative h-6 w-11 flex-none rounded-full transition ${u.image_enabled ? "bg-brand shadow-glow" : "bg-surface-3"}`}
+                          >
+                            <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${u.image_enabled ? "left-[22px]" : "left-0.5"}`} />
+                          </button>
+                          <span className={`text-xs ${u.image_enabled ? "text-success" : "text-subtle"}`}>{u.image_enabled ? c.on : c.off}</span>
+                        </form>
+                      )}
+                    </td>
+                    <td className="py-2.5 pr-4">
+                      {u.is_admin ? (
+                        <span className="text-xs text-subtle">{c.noLimit}</span>
+                      ) : (
+                        <form action={setImageCap} className="flex items-center gap-1.5" key={u.image_daily_cap ?? "default"}>
+                          <input type="hidden" name="userId" value={u.id} />
+                          <input
+                            name="cap"
+                            type="number"
+                            min={0}
+                            max={10000}
+                            inputMode="numeric"
+                            defaultValue={u.image_daily_cap ?? ""}
+                            placeholder={String(DEFAULT_IMAGE_DAILY_CAP)}
+                            aria-label={`${c.colImageLimit}: ${u.username}`}
+                            className="w-20 rounded-lg border border-line bg-surface-2 px-2 py-1 text-sm tabular-nums outline-none focus:border-pink"
+                          />
+                          <SmallButton>{c.save}</SmallButton>
+                        </form>
+                      )}
+                    </td>
+                    <td className="py-2.5 pr-4 text-right tabular-nums">
+                      {u.today}
+                      {cap !== null && (u.is_admin || u.image_enabled) ? <span className="text-subtle"> / {cap}</span> : null}
+                    </td>
+                    <td className="py-2.5 pr-4 text-right tabular-nums">{u.month}</td>
+                    <td className="py-2.5 pr-4 text-right tabular-nums">{num.format(Math.round(u.gpu_seconds))}</td>
+                    <td className="py-2.5 text-right tabular-nums">{num.format(Math.round(u.credits * 10) / 10)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </section>
     </div>
   );

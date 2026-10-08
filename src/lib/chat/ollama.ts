@@ -8,7 +8,15 @@ const BASE = (process.env.OLLAMA_BASE_URL || "https://ollama.com").replace(/\/+$
 const KEY = process.env.OLLAMA_API_KEY;
 
 export type ChatRole = "user" | "assistant" | "system";
-export type ChatTurn = { role: ChatRole; content: string };
+
+/** A tool the model asked to use, with the arguments it chose. */
+export type ToolCall = { function: { name: string; arguments: Record<string, unknown> } };
+
+/** A turn sent to the model. "tool" turns carry a tool's result back; assistant turns can carry the calls they made. */
+export type ChatTurn = { role: ChatRole | "tool"; content: string; tool_calls?: ToolCall[]; tool_name?: string };
+
+/** A tool offered to the model (Ollama's function-calling format). */
+export type ToolDef = { type: "function"; function: { name: string; description: string; parameters: object } };
 
 /** Keys into the `chat.errors` messages. */
 export type OllamaErrorReason = "not_configured" | "bad_key" | "busy" | "model" | "generic";
@@ -42,7 +50,7 @@ async function post(body: object, signal?: AbortSignal): Promise<Response> {
 }
 
 type Chunk = {
-  message?: { content?: string; thinking?: string };
+  message?: { content?: string; thinking?: string; tool_calls?: ToolCall[] };
   done?: boolean;
   error?: string;
   /** Tokens read and written, reported on the final chunk (written includes any reasoning). */
@@ -57,8 +65,8 @@ const usageOf = (c: Chunk): TokenUsage | null =>
     ? { input: c.prompt_eval_count ?? 0, output: c.eval_count ?? 0 }
     : null;
 
-/** A piece of a streamed reply: its reasoning (for thinking models) or the answer itself. */
-export type StreamPiece = { kind: "thinking" | "text"; text: string };
+/** A piece of a streamed reply: its reasoning (for thinking models), the answer itself, or a tool call. */
+export type StreamPiece = { kind: "thinking" | "text"; text: string } | { kind: "tool_call"; call: ToolCall };
 
 /**
  * Stream a reply, yielding reasoning and answer text as they arrive. Aborting `signal` stops the
@@ -70,6 +78,8 @@ export async function* streamChat(opts: {
   messages: ChatTurn[];
   numCtx: number;
   think?: boolean;
+  /** Tools the model may call; calls come back as "tool_call" pieces. */
+  tools?: ToolDef[];
   signal?: AbortSignal;
   onUsage?: (usage: TokenUsage) => void;
 }): AsyncGenerator<StreamPiece> {
@@ -79,6 +89,7 @@ export async function* streamChat(opts: {
       messages: opts.messages,
       stream: true,
       ...(opts.think === undefined ? {} : { think: opts.think }),
+      ...(opts.tools?.length ? { tools: opts.tools } : {}),
       options: { num_ctx: opts.numCtx },
     },
     opts.signal,
@@ -104,6 +115,7 @@ export async function* streamChat(opts: {
       }
       if (chunk.message?.thinking) yield { kind: "thinking", text: chunk.message.thinking };
       if (chunk.message?.content) yield { kind: "text", text: chunk.message.content };
+      for (const call of chunk.message?.tool_calls ?? []) yield { kind: "tool_call", call };
       if (chunk.done) {
         const usage = usageOf(chunk);
         if (usage) opts.onUsage?.(usage);

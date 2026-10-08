@@ -26,8 +26,10 @@ export function systemPrompt(parts: {
   project?: { name: string; instructions: string | null } | null;
   skills?: PromptSkill[];
   files?: PromptFile[];
+  /** Descriptions of images already made and shown in this chat (newest last). */
+  images?: string[];
 }): string {
-  const { base, instructions, project, skills = [], files = [] } = parts;
+  const { base, instructions, project, skills = [], files = [], images = [] } = parts;
   const quote = (s: string) => s.replace(/"/g, "'");
   let prompt = base;
   if (instructions) {
@@ -54,6 +56,13 @@ ${project.instructions}
 
 Use ${skills.length === 1 ? "this skill" : "these skills"} for your reply — follow ${skills.length === 1 ? "its" : "their"} guidance unless it conflicts with the guidance above:
 ${skills.map((s) => `<skill name="${quote(s.name)}">\n${s.instructions}\n</skill>`).join("\n")}`;
+  }
+  if (images.length) {
+    // Listed here rather than in the conversation, so models don't copy a note format into their replies.
+    prompt += `
+
+Images you've already made and shown in this chat — you can't see them; these are the descriptions they were made from (oldest first):
+${images.map((d) => `- ${d}`).join("\n")}`;
   }
   if (files.length) {
     prompt += `

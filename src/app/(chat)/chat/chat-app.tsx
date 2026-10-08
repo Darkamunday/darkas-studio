@@ -12,6 +12,9 @@ import { InstructionsDialog } from "./instructions-dialog";
 import { FilesDialog, PaperclipIcon } from "./files-dialog";
 import { MoveDialog, ProjectDialog } from "./project-dialog";
 import { SkillsDialog, SparkIcon } from "./skills-dialog";
+import { ImagePanel } from "./image-panel";
+import type { ImagePrefs } from "./use-chat-stream";
+import type { ClientImage } from "@/lib/chat/images";
 import type { ClientSkill } from "@/lib/chat/skills";
 import type { ClientProject } from "@/lib/chat/projects";
 import type { ClientFile } from "@/lib/chat/files";
@@ -32,6 +35,8 @@ export function ChatApp({
   projectId,
   initialSkills,
   initialPinnedSkills,
+  imageAccess,
+  initialImagePrefs,
   isAdmin,
 }: {
   initialConversations: SidebarConversation[];
@@ -52,6 +57,9 @@ export function ChatApp({
   /** Skills this person can use, and the ones pinned to this chat. */
   initialSkills: ClientSkill[];
   initialPinnedSkills: number[];
+  /** Can make images (admins, or switched on for them). */
+  imageAccess: boolean;
+  initialImagePrefs: ImagePrefs;
   isAdmin: boolean;
 }) {
   const { locale, m } = useI18n();
@@ -81,6 +89,8 @@ export function ChatApp({
   const [pinnedSkills, setPinnedSkills] = useState(() => new Set(initialPinnedSkills));
   const [skillsOpen, setSkillsOpen] = useState(false);
   const pinnedRef = useRef(pinnedSkills);
+  const [imagePrefs, setImagePrefs] = useState(initialImagePrefs);
+  const [imageOpen, setImageOpen] = useState(false);
   const attachedRef = useRef(attached);
 
   // Escape closes the phone drawer.
@@ -242,9 +252,29 @@ export function ChatApp({
       fileIds: [...attachedRef.current],
       projectId,
       skillIds: [...pinnedRef.current],
+      image: imagePrefs,
     });
     if (!accepted) setDraft((d) => d || content); // refused (e.g. daily limit): give their text back
   }
+
+  /** "Make an image" (and "Again" on an image): sent as "/image <description>" with its settings. */
+  async function sendImage(description: string, prefs: ImagePrefs) {
+    setImageOpen(false);
+    setImagePrefs(prefs);
+    setError(null);
+    setStick(true);
+    await pendingSaves.current;
+    await chat.send(`/image ${description}`, {
+      model,
+      think,
+      fileIds: [...attachedRef.current],
+      projectId,
+      skillIds: [...pinnedRef.current],
+      image: prefs,
+    });
+  }
+  const imageAgain = (img: ClientImage) =>
+    void sendImage(img.prompt, { model: img.model, aspect: img.aspect as ImagePrefs["aspect"], improve: false });
 
   async function makeSong(messageId: number) {
     setError(null);
@@ -264,7 +294,7 @@ export function ChatApp({
     setError(null);
     setStick(true);
     await pendingSaves.current;
-    void chat.regenerate(model, think);
+    void chat.regenerate(model, think, imagePrefs);
   }
 
   // Stable, so the dialog's Escape listener isn't re-attached on every render.
@@ -423,6 +453,7 @@ export function ChatApp({
           onClose={closeMove}
         />
       )}
+      {imageOpen && <ImagePanel prefs={imagePrefs} isAdmin={isAdmin} onMake={(d, p) => void sendImage(d, p)} onClose={() => setImageOpen(false)} />}
       {skillsOpen && (
         <SkillsDialog
           skills={skills}
@@ -534,6 +565,7 @@ export function ChatApp({
                 onRegenerate={activeId !== null ? regenerate : undefined}
                 onMakeSong={chat.streaming ? undefined : makeSong}
                 makingSong={makingSong}
+                onImageAgain={imageAccess ? imageAgain : undefined}
               />
             )}
           </div>
@@ -617,7 +649,12 @@ export function ChatApp({
           streaming={chat.streaming}
           note={usageNote}
           inputRef={inputRef}
-          skills={skills}
+          skills={
+            imageAccess
+              ? [{ slug: "image", name: m.chat.image, emoji: "🎨", description: m.chat.imageCommandHint }, ...skills]
+              : skills
+          }
+          onImage={imageAccess ? () => setImageOpen(true) : undefined}
         />
       </section>
     </div>

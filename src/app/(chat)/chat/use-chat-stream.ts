@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatEvent } from "@/lib/chat/events";
+import type { ClientImage } from "@/lib/chat/images";
 
 export type UiMessage = {
   /** Stable React key; real ids arrive from the server as the stream goes. */
@@ -12,7 +13,12 @@ export type UiMessage = {
   /** The model's reasoning before replying, and how long it took (assistant messages only). */
   thinking?: string;
   thinkingMs?: number | null;
+  /** Images made for this reply. */
+  images?: ClientImage[];
 };
+
+/** Image settings sent along with a message: the model and shape picked, and whether to improve the description. */
+export type ImagePrefs = { model: string; aspect: "square" | "portrait" | "landscape"; improve: boolean };
 
 type Request = {
   conversationId?: number;
@@ -23,6 +29,7 @@ type Request = {
   fileIds?: number[];
   projectId?: number;
   skillIds?: number[];
+  image?: ImagePrefs;
 };
 
 /** Settings for a send. Files, project and skills only matter for a chat's first message (they're saved with it). */
@@ -32,6 +39,7 @@ export type SendOptions = {
   fileIds?: number[];
   projectId?: number | null;
   skillIds?: number[];
+  image?: ImagePrefs;
 };
 
 type Handlers = {
@@ -124,6 +132,16 @@ export function useChatStream(initial: UiMessage[], conversationId: number | nul
             case "title":
               h.onTitle?.(event.title);
               break;
+            case "image": {
+              gotReply = true;
+              const img = event.image;
+              patchLast((m) => {
+                const list = m.images ?? [];
+                const at = list.findIndex((i) => i.id === img.id);
+                return { ...m, images: at < 0 ? [...list, img] : list.map((i) => (i.id === img.id ? img : i)) };
+              });
+              break;
+            }
             case "error":
               h.onError?.(event.reason);
               break;
@@ -144,7 +162,7 @@ export function useChatStream(initial: UiMessage[], conversationId: number | nul
   }, []);
 
   const send = useCallback(
-    (content: string, { model, think, fileIds, projectId, skillIds }: SendOptions = {}) => {
+    (content: string, { model, think, fileIds, projectId, skillIds, image }: SendOptions = {}) => {
       const userKey = newKey();
       const before = messagesRef.current;
       setMessages((list) => [
@@ -163,6 +181,7 @@ export function useChatStream(initial: UiMessage[], conversationId: number | nul
           fileIds: first && fileIds?.length ? fileIds : undefined,
           projectId: first && projectId ? projectId : undefined,
           skillIds: first && skillIds?.length ? skillIds : undefined,
+          image,
         },
         userKey,
         before,
@@ -172,14 +191,14 @@ export function useChatStream(initial: UiMessage[], conversationId: number | nul
   );
 
   const regenerate = useCallback(
-    (model?: string, think?: boolean) => {
+    (model?: string, think?: boolean, image?: ImagePrefs) => {
       if (idRef.current === null) return Promise.resolve(false);
       const before = messagesRef.current;
       setMessages((list) => [
         ...(list.at(-1)?.role === "assistant" ? list.slice(0, -1) : list),
         { key: newKey(), id: null, role: "assistant", content: "" },
       ]);
-      return run({ conversationId: idRef.current, regenerate: true, model, think }, null, before);
+      return run({ conversationId: idRef.current, regenerate: true, model, think, image }, null, before);
     },
     [run],
   );
