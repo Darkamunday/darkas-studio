@@ -6,11 +6,13 @@ import { fmt } from "@/lib/i18n/format";
 import { MAX_PROJECT_INSTRUCTIONS_CHARS, PROJECT_EMOJI, PROJECT_NAME_MAX, modelsFor } from "@/config/chat";
 import type { ClientFile } from "@/lib/chat/files";
 import type { ClientProject } from "@/lib/chat/projects";
+import type { ClientSkill } from "@/lib/chat/skills";
 
 /** Create a project, or edit (and delete) an existing one. */
 export function ProjectDialog({
   project,
   files,
+  skills,
   isAdmin,
   onSaved,
   onDeleted,
@@ -19,6 +21,7 @@ export function ProjectDialog({
   /** null to create a new one. */
   project: ClientProject | null;
   files: ClientFile[];
+  skills: ClientSkill[];
   isAdmin: boolean;
   onSaved: (project: ClientProject) => void;
   onDeleted: (id: number) => void;
@@ -30,6 +33,7 @@ export function ProjectDialog({
   const [emoji, setEmoji] = useState(project?.emoji ?? PROJECT_EMOJI[0]);
   const [instructions, setInstructions] = useState(project?.instructions ?? "");
   const [fileIds, setFileIds] = useState(() => new Set(project?.fileIds ?? []));
+  const [skillIds, setSkillIds] = useState(() => new Set(project?.skillIds ?? []));
   const [model, setModel] = useState(project?.model ?? "");
   const [think, setThink] = useState(project?.think === null || project?.think === undefined ? "" : project.think ? "on" : "off");
   const [saving, setSaving] = useState(false);
@@ -56,6 +60,7 @@ export function ProjectDialog({
         model: model || null,
         think: think === "" ? null : think === "on",
         fileIds: [...fileIds],
+        skillIds: [...skillIds],
       }),
     }).catch(() => null);
     const body = (await res?.json().catch(() => null)) as { project?: ClientProject; error?: string } | null;
@@ -170,6 +175,40 @@ export function ProjectDialog({
             )}
             {picked > 0 && <p className="mt-1 text-xs text-subtle">{fmt(m.chat.fileTokens, { n: num.format(picked) })}</p>}
           </fieldset>
+
+          {skills.length > 0 && (
+            <fieldset className="mt-4">
+              <legend className="text-sm font-medium">
+                {m.chat.projectSkills} <span className="font-normal text-subtle">· {m.chat.projectSkillsHint}</span>
+              </legend>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {skills.map((s) => {
+                  const on = skillIds.has(s.id);
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() =>
+                        setSkillIds((set) => {
+                          const next = new Set(set);
+                          if (next.has(s.id)) next.delete(s.id);
+                          else next.add(s.id);
+                          return next;
+                        })
+                      }
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition ${
+                        on ? "border-pink bg-pink/12 text-accent-fg" : "border-line text-muted hover:border-line-strong hover:text-fg"
+                      }`}
+                    >
+                      <span aria-hidden>{s.emoji}</span>
+                      {s.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
+          )}
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <label className="block text-sm font-medium">

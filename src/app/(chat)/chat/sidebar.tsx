@@ -7,6 +7,7 @@ import { fmt } from "@/lib/i18n/format";
 import { CHAT_TITLE_MAX } from "@/config/chat";
 import { NavLinks } from "@/components/nav-links";
 import { PaperclipIcon } from "./files-dialog";
+import { SparkIcon } from "./skills-dialog";
 import type { ClientProject } from "@/lib/chat/projects";
 
 export type SidebarConversation = { id: number; title: string | null; updated_at: number; project_id: number | null };
@@ -40,6 +41,8 @@ export function Sidebar({
   onOpenInstructions,
   fileCount,
   onOpenFiles,
+  skillCount,
+  onOpenSkills,
   projects,
   project,
   onNewProject,
@@ -59,6 +62,8 @@ export function Sidebar({
   onOpenInstructions: () => void;
   fileCount: number;
   onOpenFiles: () => void;
+  skillCount: number;
+  onOpenSkills: () => void;
   projects: (ClientProject & { count: number })[];
   /** The project being looked at (its chats are the ones listed), or null for the main list. */
   project: ClientProject | null;
@@ -242,6 +247,15 @@ export function Sidebar({
         )}
       </nav>
       <div className="border-t border-line/70 p-2">
+        <button
+          type="button"
+          onClick={onOpenSkills}
+          className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-muted transition hover:bg-surface-2 hover:text-fg"
+        >
+          <SparkIcon className="h-4 w-4 flex-none" />
+          <span className="flex-1 truncate text-left">{m.chat.skills}</span>
+          {skillCount > 0 && <span className="rounded-full bg-pink/12 px-2 py-0.5 text-xs tabular-nums text-accent-fg">{skillCount}</span>}
+        </button>
         <button
           type="button"
           onClick={onOpenFiles}

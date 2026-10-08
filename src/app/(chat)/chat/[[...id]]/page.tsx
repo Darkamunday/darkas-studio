@@ -7,6 +7,7 @@ import { CHAT_MODEL_COOKIE, CHAT_THINK_COOKIE, DEFAULT_MODEL, allowedModel } fro
 import { getConversation, getInstructions, listConversations, listMessages } from "@/lib/chat/store";
 import { attachedFileIds, listFiles, toClientFile } from "@/lib/chat/files";
 import { getProject, listProjects, toClientProject } from "@/lib/chat/projects";
+import { conversationSkillIds, listSkills, toClientSkill } from "@/lib/chat/skills";
 import { getI18n } from "@/lib/i18n/server";
 import { card } from "@/components/ui";
 import { ChatApp } from "../chat-app";
@@ -94,6 +95,8 @@ export default async function ChatPage({ params, searchParams }: PageProps<"/cha
       initialAttached={id ? attachedFileIds(user.id, id) : []}
       initialProjects={listProjects(user.id).map((p) => toClientProject(user.id, p))}
       projectId={projectId}
+      initialSkills={listSkills(user.id).map(toClientSkill)}
+      initialPinnedSkills={id ? conversationSkillIds(user.id, id) : []}
       isAdmin={isAdmin}
     />
   );

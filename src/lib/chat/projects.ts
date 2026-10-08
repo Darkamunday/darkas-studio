@@ -1,5 +1,6 @@
 import "server-only";
 import { db, transaction } from "../db";
+import { projectSkillIds, replacePinnedSkills } from "./skills";
 
 // Each person's chat projects. Every query is scoped to the owner.
 
@@ -25,6 +26,7 @@ export type ClientProject = {
   model: string | null;
   think: boolean | null;
   fileIds: number[];
+  skillIds: number[];
   chats: number;
 };
 
@@ -37,6 +39,7 @@ export function toClientProject(userId: number, p: Project): ClientProject {
     model: p.model,
     think: p.think === null ? null : !!p.think,
     fileIds: projectFileIds(userId, p.id),
+    skillIds: projectSkillIds(userId, p.id),
     chats: p.chats,
   };
 }
@@ -65,6 +68,7 @@ export type ProjectInput = {
   model?: string | null;
   think?: boolean | null;
   fileIds?: number[];
+  skillIds?: number[];
 };
 
 export function createProject(userId: number, input: ProjectInput & { name: string }): Project {
@@ -99,6 +103,7 @@ function applyUpdate(userId: number, id: number, input: ProjectInput) {
     );
     for (const fileId of new Set(input.fileIds)) add.run(id, fileId, userId);
   }
+  if (input.skillIds !== undefined) replacePinnedSkills(userId, { projectId: id }, input.skillIds);
 }
 
 /** Delete a project. Its chats stay, moved back to the main list (the foreign key sets them loose). */

@@ -9,4 +9,5 @@ export const ProjectFields = z.object({
   model: z.string().nullable().optional(),
   think: z.boolean().nullable().optional(),
   fileIds: z.array(z.number().int().positive()).max(MAX_FILES_PER_USER).optional(),
+  skillIds: z.array(z.number().int().positive()).max(50).optional(),
 });

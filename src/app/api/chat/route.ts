@@ -16,6 +16,7 @@ import { buildPrompt, estimateTokens, systemPrompt } from "@/lib/chat/context";
 import { recordSpend } from "@/lib/chat/spend";
 import { filesForChat, setAttachedFiles } from "@/lib/chat/files";
 import { getProject } from "@/lib/chat/projects";
+import { setPinnedSkills, skillsForMessage, slashSlug } from "@/lib/chat/skills";
 import { getMasterPrompt } from "@/lib/chat/master-prompt";
 import type { ChatEvent } from "@/lib/chat/events";
 import { OllamaError, completeChat, streamChat, type ChatTurn, type TokenUsage } from "@/lib/chat/ollama";
@@ -41,6 +42,8 @@ const Body = z.union([
     fileIds: z.array(z.number().int().positive()).max(MAX_FILES_PER_USER).optional(),
     /** The project a new chat starts in. */
     projectId: z.number().int().positive().optional(),
+    /** Skills pinned before a new chat existed; pinned when it's created. */
+    skillIds: z.array(z.number().int().positive()).max(50).optional(),
   }),
   z.object({
     conversationId: z.number().int().positive(),
@@ -112,13 +115,26 @@ export async function POST(req: NextRequest) {
   // Reference files go in the system prompt. Check they fit before saving anything, so a refused
   // message isn't stored or counted.
   const newFileIds = !conversation && "fileIds" in body ? (body.fileIds ?? []) : [];
+  const newSkillIds = !conversation && "skillIds" in body ? (body.skillIds ?? []) : [];
   const files = filesForChat(user.id, conversation?.id ?? null, newFileIds, project?.id ?? null);
-  const system = systemPrompt(
-    getMasterPrompt().text,
-    getInstructions(user.id),
+  // A /skill at the start of the message applies to this reply (and to regenerating it).
+  const asked =
+    "content" in body
+      ? body.content
+      : (conversation ? listMessages(user.id, conversation.id).findLast((msg) => msg.role === "user")?.content : undefined);
+  const skills = skillsForMessage(user.id, {
+    conversationId: conversation?.id ?? null,
+    projectId: project?.id ?? null,
+    extraIds: newSkillIds,
+    slug: asked ? slashSlug(asked) : null,
+  });
+  const system = systemPrompt({
+    base: getMasterPrompt().text,
+    instructions: getInstructions(user.id),
+    project: project ? { name: project.name, instructions: project.instructions } : null,
+    skills,
     files,
-    project ? { name: project.name, instructions: project.instructions } : null,
-  );
+  });
   if (estimateTokens([{ role: "system", content: system }]) > model.contextTokens - MAX_REPLY_TOKENS - MIN_CONVERSATION_TOKENS) {
     return Response.json({ error: "files_too_big", model: model.label }, { status: 413 });
   }
@@ -137,6 +153,7 @@ export async function POST(req: NextRequest) {
   });
   conversation = getConversation(user.id, conversationId)!;
   if (newFileIds.length) setAttachedFiles(user.id, conversationId, newFileIds);
+  if (newSkillIds.length) setPinnedSkills(user.id, { conversationId }, newSkillIds);
 
   const history = listMessages(user.id, conversationId).map<ChatTurn>((m) => ({ role: m.role, content: m.content }));
   if (history.at(-1)?.role !== "user") return Response.json({ error: "nothing_to_answer" }, { status: 400 });

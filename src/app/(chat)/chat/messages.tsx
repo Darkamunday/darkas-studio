@@ -66,9 +66,21 @@ function UserMessage({ content }: { content: string }) {
         <CopyAction getText={() => content} label={m.chat.copyMessage} />
       </div>
       <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-3xl rounded-br-lg bg-pink/12 px-4 py-2.5 text-fg">
-        {content}
+        <SlashCommand content={content} />
       </div>
     </div>
+  );
+}
+
+/** A message, with a leading /skill command shown as a highlighted tag. */
+function SlashCommand({ content }: { content: string }) {
+  const command = /^\/[a-z0-9][a-z0-9-]{1,29}(?=\s|$)/.exec(content)?.[0];
+  if (!command) return <>{content}</>;
+  return (
+    <>
+      <span className="mr-1 rounded-md bg-pink/20 px-1.5 py-0.5 font-mono text-sm text-accent-fg">{command}</span>
+      {content.slice(command.length).replace(/^\s+/, "")}
+    </>
   );
 }
 

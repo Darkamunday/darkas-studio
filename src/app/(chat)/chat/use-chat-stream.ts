@@ -22,6 +22,16 @@ type Request = {
   think?: boolean;
   fileIds?: number[];
   projectId?: number;
+  skillIds?: number[];
+};
+
+/** Settings for a send. Files, project and skills only matter for a chat's first message (they're saved with it). */
+export type SendOptions = {
+  model?: string;
+  think?: boolean;
+  fileIds?: number[];
+  projectId?: number | null;
+  skillIds?: number[];
 };
 
 type Handlers = {
@@ -134,7 +144,7 @@ export function useChatStream(initial: UiMessage[], conversationId: number | nul
   }, []);
 
   const send = useCallback(
-    (content: string, model?: string, think?: boolean, fileIds?: number[], projectId?: number | null) => {
+    (content: string, { model, think, fileIds, projectId, skillIds }: SendOptions = {}) => {
       const userKey = newKey();
       const before = messagesRef.current;
       setMessages((list) => [
@@ -142,11 +152,18 @@ export function useChatStream(initial: UiMessage[], conversationId: number | nul
         { key: userKey, id: null, role: "user", content },
         { key: newKey(), id: null, role: "assistant", content: "" },
       ]);
-      // Files picked before the chat exists ride along with its first message.
-      const files = idRef.current === null && fileIds?.length ? fileIds : undefined;
-      const project = idRef.current === null && projectId ? projectId : undefined;
+      // What was picked before the chat exists rides along with its first message.
+      const first = idRef.current === null;
       return run(
-        { conversationId: idRef.current ?? undefined, content, model, think, fileIds: files, projectId: project },
+        {
+          conversationId: idRef.current ?? undefined,
+          content,
+          model,
+          think,
+          fileIds: first && fileIds?.length ? fileIds : undefined,
+          projectId: first && projectId ? projectId : undefined,
+          skillIds: first && skillIds?.length ? skillIds : undefined,
+        },
         userKey,
         before,
       );

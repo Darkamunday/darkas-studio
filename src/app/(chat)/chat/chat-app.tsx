@@ -11,6 +11,8 @@ import { ModelPicker } from "./model-picker";
 import { InstructionsDialog } from "./instructions-dialog";
 import { FilesDialog, PaperclipIcon } from "./files-dialog";
 import { MoveDialog, ProjectDialog } from "./project-dialog";
+import { SkillsDialog, SparkIcon } from "./skills-dialog";
+import type { ClientSkill } from "@/lib/chat/skills";
 import type { ClientProject } from "@/lib/chat/projects";
 import type { ClientFile } from "@/lib/chat/files";
 import { CHAT_MODEL_COOKIE, CHAT_THINK_COOKIE, MAX_REPLY_TOKENS, findChatModel } from "@/config/chat";
@@ -28,6 +30,8 @@ export function ChatApp({
   initialAttached,
   initialProjects,
   projectId,
+  initialSkills,
+  initialPinnedSkills,
   isAdmin,
 }: {
   initialConversations: SidebarConversation[];
@@ -45,6 +49,9 @@ export function ChatApp({
   initialProjects: ClientProject[];
   /** The project this chat is in (or a new chat is being started in); null for the main list. */
   projectId: number | null;
+  /** Skills this person can use, and the ones pinned to this chat. */
+  initialSkills: ClientSkill[];
+  initialPinnedSkills: number[];
   isAdmin: boolean;
 }) {
   const { locale, m } = useI18n();
@@ -70,6 +77,10 @@ export function ChatApp({
   const [projectDialog, setProjectDialog] = useState<"new" | number | null>(null);
   const [moving, setMoving] = useState<number | null>(null);
   const project = projects.find((p) => p.id === projectId) ?? null;
+  const [skills, setSkills] = useState(initialSkills);
+  const [pinnedSkills, setPinnedSkills] = useState(() => new Set(initialPinnedSkills));
+  const [skillsOpen, setSkillsOpen] = useState(false);
+  const pinnedRef = useRef(pinnedSkills);
   const attachedRef = useRef(attached);
 
   // Escape closes the phone drawer.
@@ -124,7 +135,30 @@ export function ChatApp({
   useLayoutEffect(() => {
     activeIdRef.current = activeId;
     attachedRef.current = attached;
+    pinnedRef.current = pinnedSkills;
   });
+
+  /** Pin or unpin a skill for this chat (saved straight away once the chat exists). */
+  function togglePin(id: number) {
+    const next = new Set(pinnedRef.current);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    pinnedRef.current = next;
+    setPinnedSkills(next);
+    const chatId = activeIdRef.current;
+    if (chatId !== null) queueSave(`/api/chat/conversations/${chatId}/skills`, { skillIds: [...next] });
+  }
+
+  // Saves for attachments and pins run one after another; sending waits for them, so a message sent
+  // right after ticking a file or skill always goes with it.
+  const pendingSaves = useRef<Promise<unknown>>(Promise.resolve());
+  const queueSave = (url: string, body: object) => {
+    pendingSaves.current = pendingSaves.current.then(() =>
+      fetch(url, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+        .then((res) => !res.ok && setError(m.chat.errors.generic))
+        .catch(() => setError(m.chat.errors.generic)),
+    );
+  };
 
   /** Attach or detach a file for this chat (saved straight away once the chat exists). */
   function toggleAttach(id: number) {
@@ -134,18 +168,13 @@ export function ChatApp({
     attachedRef.current = next;
     setAttached(next);
     const chatId = activeIdRef.current;
-    if (chatId !== null) {
-      void fetch(`/api/chat/conversations/${chatId}/files`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileIds: [...next] }),
-      }).then((res) => !res.ok && setError(m.chat.errors.generic));
-    }
+    if (chatId !== null) queueSave(`/api/chat/conversations/${chatId}/files`, { fileIds: [...next] });
   }
   // Stable, so the dialogs' Escape listeners aren't re-attached on every render.
   const closeFiles = useCallback(() => setFilesOpen(false), []);
   const closeProjectDialog = useCallback(() => setProjectDialog(null), []);
   const closeMove = useCallback(() => setMoving(null), []);
+  const closeSkills = useCallback(() => setSkillsOpen(false), []);
 
   /** Move a chat into a project (or out). If it's the open chat, follow it to its new place. */
   async function move(id: number, target: number | null) {
@@ -206,7 +235,14 @@ export function ChatApp({
     setError(null);
     setDraft("");
     setStick(true);
-    const accepted = await chat.send(content, model, think, [...attachedRef.current], projectId);
+    await pendingSaves.current;
+    const accepted = await chat.send(content, {
+      model,
+      think,
+      fileIds: [...attachedRef.current],
+      projectId,
+      skillIds: [...pinnedRef.current],
+    });
     if (!accepted) setDraft((d) => d || content); // refused (e.g. daily limit): give their text back
   }
 
@@ -224,9 +260,10 @@ export function ChatApp({
     setError((m.chat.errors as Record<string, string>)[reason] ?? m.chat.errors.song_failed);
   }
 
-  function regenerate() {
+  async function regenerate() {
     setError(null);
     setStick(true);
+    await pendingSaves.current;
     void chat.regenerate(model, think);
   }
 
@@ -253,6 +290,8 @@ export function ChatApp({
     setStick(true);
     attachedRef.current = new Set();
     setAttached(attachedRef.current);
+    pinnedRef.current = new Set();
+    setPinnedSkills(pinnedRef.current);
     chat.setMessages([]);
     setActiveId(null);
     router.push(projectId ? `/chat?project=${projectId}` : "/chat");
@@ -287,6 +326,8 @@ export function ChatApp({
   // File tokens that fit alongside a short conversation (matches the server's check).
   const fileWindow = (activeModel?.contextTokens ?? 32_000) - MAX_REPLY_TOKENS - 2_500;
   const projectFiles = new Set(project?.fileIds ?? []);
+  const projectSkills = new Set(project?.skillIds ?? []);
+  const activeSkills = skills.filter((s) => pinnedSkills.has(s.id) || projectSkills.has(s.id));
   const inChat = files.filter((f) => f.always || attached.has(f.id) || projectFiles.has(f.id));
   // The sidebar lists the chats in the project being looked at, or those in no project.
   const listed = conversations.filter((c) => (c.project_id ?? null) === projectId);
@@ -317,6 +358,11 @@ export function ChatApp({
     isAdmin,
     hasInstructions: instructions.trim() !== "",
     fileCount: files.length,
+    skillCount: activeSkills.length,
+    onOpenSkills: () => {
+      setDrawerOpen(false);
+      setSkillsOpen(true);
+    },
     onOpenFiles: () => {
       setDrawerOpen(false);
       setFilesOpen(true);
@@ -351,6 +397,7 @@ export function ChatApp({
         <ProjectDialog
           project={projectDialog === "new" ? null : (projects.find((p) => p.id === projectDialog) ?? null)}
           files={files}
+          skills={skills}
           isAdmin={isAdmin}
           onSaved={(saved) => {
             setProjectDialog(null);
@@ -374,6 +421,17 @@ export function ChatApp({
           current={conversations.find((c) => c.id === moving)?.project_id ?? null}
           onMove={(target) => void move(moving, target)}
           onClose={closeMove}
+        />
+      )}
+      {skillsOpen && (
+        <SkillsDialog
+          skills={skills}
+          pinned={pinnedSkills}
+          projectSkills={projectSkills}
+          isAdmin={isAdmin}
+          onSkillsChange={setSkills}
+          onTogglePin={togglePin}
+          onClose={closeSkills}
         />
       )}
       {filesOpen && (
@@ -418,6 +476,18 @@ export function ChatApp({
             )}
             <span className="truncate">{activeTitle}</span>
           </h1>
+          <button
+            type="button"
+            onClick={() => setSkillsOpen(true)}
+            title={m.chat.skills}
+            aria-label={`${m.chat.skills}${activeSkills.length ? ` (${activeSkills.length})` : ""}`}
+            className={`inline-flex h-[34px] items-center gap-1.5 rounded-xl border px-2.5 text-sm transition ${
+              activeSkills.length ? "border-pink/50 bg-pink/12 text-accent-fg" : "border-line bg-surface text-subtle hover:border-line-strong hover:text-fg"
+            }`}
+          >
+            <SparkIcon className="h-4 w-4" />
+            {activeSkills.length > 0 && <span className="tabular-nums">{activeSkills.length}</span>}
+          </button>
           <button
             type="button"
             onClick={() => setFilesOpen(true)}
@@ -484,8 +554,30 @@ export function ChatApp({
           )}
         </div>
 
-        {inChat.length > 0 && (
+        {(inChat.length > 0 || activeSkills.length > 0) && (
           <div className="mx-auto flex w-full max-w-3xl flex-wrap gap-1.5 px-4 pb-2">
+            {activeSkills.map((s) => (
+              <span
+                key={`skill-${s.id}`}
+                className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-pink/30 bg-pink/8 py-1 pl-2.5 pr-1 text-xs text-accent-fg"
+              >
+                <span aria-hidden>{s.emoji}</span>
+                <span className="truncate">{s.name}</span>
+                {projectSkills.has(s.id) ? (
+                  <span className="rounded-full bg-pink/12 px-1.5 py-0.5 text-[10px] font-medium uppercase">{m.chat.projectTag}</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => togglePin(s.id)}
+                    aria-label={`${m.chat.detachFile}: ${s.name}`}
+                    title={m.chat.detachFile}
+                    className="grid h-5 w-5 place-items-center rounded-full transition hover:bg-pink/20"
+                  >
+                    ×
+                  </button>
+                )}
+              </span>
+            ))}
             {inChat.map((f) => (
               <span
                 key={f.id}
@@ -525,6 +617,7 @@ export function ChatApp({
           streaming={chat.streaming}
           note={usageNote}
           inputRef={inputRef}
+          skills={skills}
         />
       </section>
     </div>

@@ -68,6 +68,14 @@ export const MAX_PROJECT_INSTRUCTIONS_CHARS = 4_000;
 /** The emoji a project can wear in the sidebar. */
 export const PROJECT_EMOJI = ["✦", "🎸", "🎤", "🎹", "🥁", "🎧", "📝", "📖", "🌙", "🔥", "🌸", "🖤", "💜", "🎬", "🎮", "🐾"];
 
+/** Skills: limits, and the icons one can wear. A slug is the /command that uses it. */
+export const MAX_SKILLS_PER_USER = 30;
+export const SKILL_NAME_MAX = 40;
+export const SKILL_DESCRIPTION_MAX = 200;
+export const MAX_SKILL_INSTRUCTIONS_CHARS = 4_000;
+export const SKILL_SLUG = /^[a-z0-9][a-z0-9-]{1,29}$/;
+export const SKILL_EMOJI = ["✦", "✍️", "🔍", "🎛️", "🎯", "🎤", "🎸", "🎹", "📝", "📖", "💡", "🧠", "🌙", "🔥", "💜", "🐾"];
+
 /** Longest message someone can send, in characters. */
 export const MAX_MESSAGE_CHARS = 20_000;
 

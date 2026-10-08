@@ -294,6 +294,40 @@ const MIGRATIONS: string[] = [
   ALTER TABLE conversations ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL;
   CREATE INDEX conversations_project ON conversations(project_id);
   `,
+  // 17: skills — saved instructions for a kind of job (songwriting, critique…), used for one message
+  // with /slug or pinned to a chat or project. owner_id NULL = shared (made by admins, usable by
+  // everyone with chat); otherwise private to its owner. Starts with a few music skills.
+  `
+  CREATE TABLE skills (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    owner_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    slug         TEXT NOT NULL,
+    name         TEXT NOT NULL,
+    emoji        TEXT NOT NULL DEFAULT '✦',
+    description  TEXT NOT NULL DEFAULT '',
+    instructions TEXT NOT NULL,
+    created_at   INTEGER NOT NULL DEFAULT (unixepoch()),
+    updated_at   INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+  CREATE UNIQUE INDEX skills_shared_slug ON skills(slug) WHERE owner_id IS NULL;
+  CREATE UNIQUE INDEX skills_own_slug ON skills(owner_id, slug) WHERE owner_id IS NOT NULL;
+
+  CREATE TABLE conversation_skills (
+    conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    skill_id        INTEGER NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+    PRIMARY KEY (conversation_id, skill_id)
+  );
+  CREATE TABLE project_skills (
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    skill_id   INTEGER NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+    PRIMARY KEY (project_id, skill_id)
+  );
+
+  INSERT INTO skills (slug, name, emoji, description, instructions) VALUES ('songwriter', 'Songwriter', '✍️', 'Writes complete, singable lyrics with section tags and a style line.', 'Act as an experienced songwriter. When asked for a song, write complete lyrics with section tags on their own lines — [Verse 1], [Pre-Chorus], [Chorus], [Verse 2], [Bridge], [Outro], as the song needs. Keep lines singable: similar syllable counts within a section, natural stresses, and a memorable hook in the chorus that repeats exactly. Prefer concrete images to abstractions, and avoid tired rhymes (fire/desire, heart/apart) unless you twist them. Match the mood and genre asked for. After the lyrics, add one line starting "Style:" with a short comma-separated style prompt for an AI music generator (genre, mood, tempo, instruments, vocals). Don''t explain the song unless asked.');
+  INSERT INTO skills (slug, name, emoji, description, instructions) VALUES ('lyric-critic', 'Lyric critic', '🔍', 'Honest, specific feedback on lyrics, with fixes.', 'Act as a candid but kind lyric editor. For the lyrics you''re given: (1) give a one-sentence overall impression; (2) name two or three things that work, quoting the lines; (3) point out problems — rhythm and syllable mismatches, forced rhymes, clichés, unclear images, a weak hook — quoting each line and offering a concrete rewrite; (4) if the hook could be stronger, suggest a revised chorus. Keep the writer''s voice and don''t rewrite everything. Be direct; no flattery.');
+  INSERT INTO skills (slug, name, emoji, description, instructions) VALUES ('style', 'Style prompt', '🎛️', 'Turns a vibe into a tight style prompt for the music generator.', 'Turn the person''s description into a style prompt for an AI music generator. Reply with the style prompt on one line: comma-separated descriptors under 200 characters covering genre and subgenre, mood, tempo (BPM if useful), key instruments, vocal type and delivery, and production feel. Then give two alternatives on their own lines — one safer, one bolder. Never use artist names. No extra commentary unless asked.');
+  INSERT INTO skills (slug, name, emoji, description, instructions) VALUES ('rhymes', 'Rhyme helper', '🎯', 'Rhymes, near-rhymes and line ideas for a word or line.', 'Help the person find rhymes. For the word or line they give, list perfect rhymes, near (slant) rhymes and multi-syllable rhymes, then three to five example lines that land a rhyme naturally in their context and mood. Use short headings, keep it easy to scan, and skip obscure words nobody would sing.');
+  `,
 ];
 
 function open(): DatabaseSync {
