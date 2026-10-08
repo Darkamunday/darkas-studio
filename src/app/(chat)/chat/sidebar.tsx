@@ -7,8 +7,9 @@ import { fmt } from "@/lib/i18n/format";
 import { CHAT_TITLE_MAX } from "@/config/chat";
 import { NavLinks } from "@/components/nav-links";
 import { PaperclipIcon } from "./files-dialog";
+import type { ClientProject } from "@/lib/chat/projects";
 
-export type SidebarConversation = { id: number; title: string | null; updated_at: number };
+export type SidebarConversation = { id: number; title: string | null; updated_at: number; project_id: number | null };
 
 type Group = "today" | "yesterday" | "week" | "older";
 
@@ -39,6 +40,11 @@ export function Sidebar({
   onOpenInstructions,
   fileCount,
   onOpenFiles,
+  projects,
+  project,
+  onNewProject,
+  onEditProject,
+  onMoveChat,
 }: {
   conversations: SidebarConversation[];
   activeId: number | null;
@@ -53,6 +59,12 @@ export function Sidebar({
   onOpenInstructions: () => void;
   fileCount: number;
   onOpenFiles: () => void;
+  projects: (ClientProject & { count: number })[];
+  /** The project being looked at (its chats are the ones listed), or null for the main list. */
+  project: ClientProject | null;
+  onNewProject: () => void;
+  onEditProject: () => void;
+  onMoveChat: (id: number) => void;
 }) {
   const { m } = useI18n();
   const [editing, setEditing] = useState<number | null>(null);
@@ -92,10 +104,79 @@ export function Sidebar({
         )}
       </div>
 
-      {!inBrowser && <p className="px-5 pb-1 text-xs font-medium uppercase tracking-wide text-subtle">{m.chat.chats}</p>}
       <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
+        {project ? (
+          <div className="mb-3">
+            <Link
+              href="/chat"
+              onClick={onNavigate}
+              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-subtle transition hover:text-fg"
+            >
+              <span aria-hidden>←</span> {m.chat.allChats}
+            </Link>
+            <div className="mt-1 flex items-center gap-2 rounded-2xl border border-line bg-surface px-3 py-2.5">
+              <span aria-hidden className="text-lg">{project.emoji}</span>
+              <span className="min-w-0 flex-1 truncate font-medium">{project.name}</span>
+              <button
+                type="button"
+                onClick={onEditProject}
+                aria-label={m.chat.projectSettings}
+                title={m.chat.projectSettings}
+                className="grid h-8 w-8 place-items-center rounded-lg text-subtle transition hover:bg-surface-2 hover:text-fg"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="mb-3">
+            <div className="flex items-center justify-between px-3 pb-1">
+              <p className="text-xs font-medium uppercase tracking-wide text-subtle">{m.chat.projects}</p>
+              <button
+                type="button"
+                onClick={onNewProject}
+                aria-label={m.chat.newProject}
+                title={m.chat.newProject}
+                className="grid h-6 w-6 place-items-center rounded-md text-subtle transition hover:bg-surface-2 hover:text-fg"
+              >
+                <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+              </button>
+            </div>
+            {projects.length === 0 ? (
+              <button
+                type="button"
+                onClick={onNewProject}
+                className="w-full rounded-xl border border-dashed border-line px-3 py-2 text-left text-sm text-subtle transition hover:border-line-strong hover:text-fg"
+              >
+                + {m.chat.newProject}
+              </button>
+            ) : (
+              <ul className="flex flex-col gap-0.5">
+                {projects.map((p) => (
+                  <li key={p.id}>
+                    <Link
+                      href={`/chat?project=${p.id}`}
+                      onClick={onNavigate}
+                      className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-muted transition hover:bg-surface-2 hover:text-fg"
+                    >
+                      <span aria-hidden className="text-base leading-none">{p.emoji}</span>
+                      <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                      {p.count > 0 && <span className="text-xs tabular-nums text-subtle">{p.count}</span>}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {!inBrowser && !project && <p className="px-3 pb-1 text-xs font-medium uppercase tracking-wide text-subtle">{m.chat.chats}</p>}
         {conversations.length === 0 ? (
-          <p className="px-3 py-2 text-sm text-muted">{m.chat.noChats}</p>
+          <p className="px-3 py-2 text-sm text-muted">{project ? m.chat.noProjectChats : m.chat.noChats}</p>
         ) : (
           <ul className="flex flex-col gap-0.5">
             {conversations.map((c, i) => {
@@ -125,7 +206,7 @@ export function Sidebar({
                         onClick={onNavigate}
                         aria-current={active ? "page" : undefined}
                         title={title}
-                        className={`block truncate rounded-xl py-2 pl-3 pr-16 text-sm transition ${
+                        className={`block truncate rounded-xl py-2 pl-3 pr-24 text-sm transition ${
                           active ? "bg-surface-3 font-medium text-fg" : "text-muted hover:bg-surface-2 hover:text-fg"
                         }`}
                       >
@@ -136,6 +217,9 @@ export function Sidebar({
                           active ? "md:opacity-100" : ""
                         }`}
                       >
+                        <IconButton label={m.chat.moveChat} onClick={() => onMoveChat(c.id)}>
+                          <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+                        </IconButton>
                         <IconButton label={m.chat.rename} onClick={() => setEditing(c.id)}>
                           <path d="M12 20h9M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4Z" />
                         </IconButton>

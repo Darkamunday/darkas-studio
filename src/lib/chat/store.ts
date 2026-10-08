@@ -9,6 +9,8 @@ export type Conversation = {
   id: number;
   title: string | null;
   model: string;
+  /** The project it belongs to, if any. */
+  project_id: number | null;
   created_at: number;
   updated_at: number;
 };
@@ -26,7 +28,7 @@ export type ChatMessage = {
 export function listConversations(userId: number): Conversation[] {
   return db
     .prepare(
-      `SELECT id, title, model, created_at, updated_at FROM conversations
+      `SELECT id, title, model, project_id, created_at, updated_at FROM conversations
         WHERE user_id = ? ORDER BY updated_at DESC, id DESC`,
     )
     .all(userId) as Conversation[];
@@ -34,12 +36,15 @@ export function listConversations(userId: number): Conversation[] {
 
 export function getConversation(userId: number, id: number): Conversation | undefined {
   return db
-    .prepare("SELECT id, title, model, created_at, updated_at FROM conversations WHERE id = ? AND user_id = ?")
+    .prepare("SELECT id, title, model, project_id, created_at, updated_at FROM conversations WHERE id = ? AND user_id = ?")
     .get(id, userId) as Conversation | undefined;
 }
 
-export function createConversation(userId: number, model: string): number {
-  const res = db.prepare("INSERT INTO conversations (user_id, model) VALUES (?, ?)").run(userId, model);
+/** `projectId` must already be checked as this person's. */
+export function createConversation(userId: number, model: string, projectId: number | null = null): number {
+  const res = db
+    .prepare("INSERT INTO conversations (user_id, model, project_id) VALUES (?, ?, ?)")
+    .run(userId, model, projectId);
   return Number(res.lastInsertRowid);
 }
 

@@ -15,6 +15,7 @@ import {
 import { buildPrompt, estimateTokens, systemPrompt } from "@/lib/chat/context";
 import { recordSpend } from "@/lib/chat/spend";
 import { filesForChat, setAttachedFiles } from "@/lib/chat/files";
+import { getProject } from "@/lib/chat/projects";
 import { getMasterPrompt } from "@/lib/chat/master-prompt";
 import type { ChatEvent } from "@/lib/chat/events";
 import { OllamaError, completeChat, streamChat, type ChatTurn, type TokenUsage } from "@/lib/chat/ollama";
@@ -38,6 +39,8 @@ const Body = z.union([
     think: z.boolean().optional(),
     /** Files picked before a new chat existed; attached when it's created. */
     fileIds: z.array(z.number().int().positive()).max(MAX_FILES_PER_USER).optional(),
+    /** The project a new chat starts in. */
+    projectId: z.number().int().positive().optional(),
   }),
   z.object({
     conversationId: z.number().int().positive(),
@@ -101,11 +104,21 @@ export async function POST(req: NextRequest) {
     findChatModel(DEFAULT_MODEL) ??
     CHAT_MODELS[0];
 
+  // The chat's project: its own for an existing chat, or the one a new chat is started in.
+  const projectId = conversation ? conversation.project_id : "projectId" in body ? (body.projectId ?? null) : null;
+  const project = projectId ? getProject(user.id, projectId) : undefined;
+  if (projectId && !project && !conversation) return Response.json({ error: "not_found" }, { status: 404 });
+
   // Reference files go in the system prompt. Check they fit before saving anything, so a refused
   // message isn't stored or counted.
   const newFileIds = !conversation && "fileIds" in body ? (body.fileIds ?? []) : [];
-  const files = filesForChat(user.id, conversation?.id ?? null, newFileIds);
-  const system = systemPrompt(getMasterPrompt().text, getInstructions(user.id), files);
+  const files = filesForChat(user.id, conversation?.id ?? null, newFileIds, project?.id ?? null);
+  const system = systemPrompt(
+    getMasterPrompt().text,
+    getInstructions(user.id),
+    files,
+    project ? { name: project.name, instructions: project.instructions } : null,
+  );
   if (estimateTokens([{ role: "system", content: system }]) > model.contextTokens - MAX_REPLY_TOKENS - MIN_CONVERSATION_TOKENS) {
     return Response.json({ error: "files_too_big", model: model.label }, { status: 413 });
   }
@@ -113,7 +126,7 @@ export async function POST(req: NextRequest) {
   // Save the user's side first, so it's kept even if the model never answers.
   let userMessageId: number | null = null;
   const conversationId = transaction(() => {
-    const id = conversation?.id ?? createConversation(user.id, requestedModel?.id ?? DEFAULT_MODEL);
+    const id = conversation?.id ?? createConversation(user.id, requestedModel?.id ?? DEFAULT_MODEL, project?.id ?? null);
     if (conversation && requestedModel && requestedModel.id !== conversation.model) {
       setConversationModel(user.id, id, requestedModel.id);
     }

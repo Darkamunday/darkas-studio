@@ -12,6 +12,7 @@ import type { ClientFile } from "@/lib/chat/files";
 export function FilesDialog({
   files,
   attached,
+  projectFiles,
   modelLabel,
   windowTokens,
   onFilesChange,
@@ -20,6 +21,8 @@ export function FilesDialog({
 }: {
   files: ClientFile[];
   attached: Set<number>;
+  /** Files the chat's project brings in (always included; managed in the project's settings). */
+  projectFiles: Set<number>;
   modelLabel: string;
   /** How many file tokens fit in the model's window alongside a short conversation. */
   windowTokens: number;
@@ -95,7 +98,7 @@ export function FilesDialog({
     else setError(errorText("generic"));
   }
 
-  const used = files.filter((f) => f.always || attached.has(f.id)).reduce((n, f) => n + f.tokens, 0);
+  const used = files.filter((f) => f.always || attached.has(f.id) || projectFiles.has(f.id)).reduce((n, f) => n + f.tokens, 0);
   const over = used > windowTokens;
 
   return (
@@ -164,15 +167,22 @@ export function FilesDialog({
                     <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3" title={m.chat.useInChat}>
                       <input
                         type="checkbox"
-                        checked={f.always || attached.has(f.id)}
-                        disabled={f.always}
+                        checked={f.always || attached.has(f.id) || projectFiles.has(f.id)}
+                        disabled={f.always || projectFiles.has(f.id)}
                         onChange={() => onToggleAttach(f.id)}
                         aria-label={`${m.chat.useInChat}: ${f.name}`}
                         className="h-4 w-4 flex-none accent-[var(--pink)]"
                       />
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-medium">{f.name}</span>
-                        <span className="text-xs text-subtle">{fmt(m.chat.fileTokens, { n: num.format(f.tokens) })}</span>
+                        <span className="text-xs text-subtle">
+                          {fmt(m.chat.fileTokens, { n: num.format(f.tokens) })}
+                          {projectFiles.has(f.id) && (
+                            <span className="ml-1.5 rounded-full bg-pink/12 px-1.5 py-0.5 text-[10px] font-medium uppercase text-accent-fg">
+                              {m.chat.projectTag}
+                            </span>
+                          )}
+                        </span>
                       </span>
                     </label>
                     <label className="flex items-center gap-1.5 text-xs text-muted" title={m.chat.alwaysHint}>

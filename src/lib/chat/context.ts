@@ -14,9 +14,15 @@ export type PromptFile = { name: string; text: string };
 
 /**
  * The master prompt (admin-set, or the config default), then the person's own instructions if any,
- * then the reference files attached to this chat. Files are framed as material to draw on, not orders.
+ * then the chat's project and its instructions, then the reference files the chat uses. Files are
+ * framed as material to draw on, not orders.
  */
-export function systemPrompt(base: string, instructions: string | null, files: PromptFile[] = []): string {
+export function systemPrompt(
+  base: string,
+  instructions: string | null,
+  files: PromptFile[] = [],
+  project: { name: string; instructions: string | null } | null = null,
+): string {
   let prompt = base;
   if (instructions) {
     prompt += `
@@ -25,6 +31,17 @@ The person you're talking with has given these custom instructions for how you s
 <custom_instructions>
 ${instructions}
 </custom_instructions>`;
+  }
+  if (project) {
+    prompt += `
+
+This chat is part of the person's project "${project.name.replace(/"/g, "'")}".`;
+    if (project.instructions) {
+      prompt += ` They've written these instructions for every chat in it — follow them unless they conflict with the guidance above:
+<project_instructions>
+${project.instructions}
+</project_instructions>`;
+    }
   }
   if (files.length) {
     const quote = (s: string) => s.replace(/"/g, "'");

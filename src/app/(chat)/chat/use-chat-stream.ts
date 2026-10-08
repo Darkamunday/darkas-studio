@@ -21,6 +21,7 @@ type Request = {
   model?: string;
   think?: boolean;
   fileIds?: number[];
+  projectId?: number;
 };
 
 type Handlers = {
@@ -133,7 +134,7 @@ export function useChatStream(initial: UiMessage[], conversationId: number | nul
   }, []);
 
   const send = useCallback(
-    (content: string, model?: string, think?: boolean, fileIds?: number[]) => {
+    (content: string, model?: string, think?: boolean, fileIds?: number[], projectId?: number | null) => {
       const userKey = newKey();
       const before = messagesRef.current;
       setMessages((list) => [
@@ -143,7 +144,12 @@ export function useChatStream(initial: UiMessage[], conversationId: number | nul
       ]);
       // Files picked before the chat exists ride along with its first message.
       const files = idRef.current === null && fileIds?.length ? fileIds : undefined;
-      return run({ conversationId: idRef.current ?? undefined, content, model, think, fileIds: files }, userKey, before);
+      const project = idRef.current === null && projectId ? projectId : undefined;
+      return run(
+        { conversationId: idRef.current ?? undefined, content, model, think, fileIds: files, projectId: project },
+        userKey,
+        before,
+      );
     },
     [run],
   );

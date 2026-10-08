@@ -80,9 +80,27 @@ export function setAttachedFiles(userId: number, conversationId: number, fileIds
   });
 }
 
-/** What a chat should know: its attached files plus the person's always-on ones, by name. */
-export function filesForChat(userId: number, conversationId: number | null, extraIds: number[] = []): FileWithText[] {
-  const ids = new Set([...(conversationId ? attachedFileIds(userId, conversationId) : []), ...extraIds]);
+/**
+ * What a chat should know: its attached files, its project's files and the person's always-on ones,
+ * by name. `extraIds` are files picked for a chat that doesn't exist yet.
+ */
+export function filesForChat(
+  userId: number,
+  conversationId: number | null,
+  extraIds: number[] = [],
+  projectId: number | null = null,
+): FileWithText[] {
+  const projectFiles = projectId
+    ? (
+        db
+          .prepare(
+            `SELECT pf.file_id FROM project_files pf JOIN projects p ON p.id = pf.project_id
+              WHERE pf.project_id = ? AND p.user_id = ?`,
+          )
+          .all(projectId, userId) as { file_id: number }[]
+      ).map((r) => r.file_id)
+    : [];
+  const ids = new Set([...(conversationId ? attachedFileIds(userId, conversationId) : []), ...extraIds, ...projectFiles]);
   return (
     db
       .prepare(`SELECT ${META}, text FROM chat_files WHERE user_id = ? ORDER BY name COLLATE NOCASE, id`)

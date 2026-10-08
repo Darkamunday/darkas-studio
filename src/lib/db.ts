@@ -267,6 +267,33 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX conversation_files_file ON conversation_files(file_id);
   `,
+  // 16: chat projects — each person's own. A project groups chats and gives them shared instructions
+  // and reference files, and can set the model and Think setting new chats in it start with
+  // (NULL = no preference). Deleting a project keeps its chats: they move back to the main list.
+  `
+  CREATE TABLE projects (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name         TEXT NOT NULL,
+    emoji        TEXT NOT NULL DEFAULT '✦',
+    instructions TEXT,
+    model        TEXT,
+    think        INTEGER,
+    created_at   INTEGER NOT NULL DEFAULT (unixepoch()),
+    updated_at   INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+  CREATE INDEX projects_user ON projects(user_id);
+
+  CREATE TABLE project_files (
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    file_id    INTEGER NOT NULL REFERENCES chat_files(id) ON DELETE CASCADE,
+    PRIMARY KEY (project_id, file_id)
+  );
+  CREATE INDEX project_files_file ON project_files(file_id);
+
+  ALTER TABLE conversations ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL;
+  CREATE INDEX conversations_project ON conversations(project_id);
+  `,
 ];
 
 function open(): DatabaseSync {

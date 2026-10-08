@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import { CHAT_MODEL_COOKIE, CHAT_THINK_COOKIE, DEFAULT_MODEL, allowedModel } from "@/config/chat";
 import { getConversation, getInstructions, listConversations, listMessages } from "@/lib/chat/store";
 import { attachedFileIds, listFiles, toClientFile } from "@/lib/chat/files";
+import { getProject, listProjects, toClientProject } from "@/lib/chat/projects";
 import { getI18n } from "@/lib/i18n/server";
 import { card } from "@/components/ui";
 import { ChatApp } from "../chat-app";
@@ -14,8 +15,8 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: (await getI18n()).m.meta.chat };
 }
 
-// /chat is a new chat; /chat/<id> opens one of yours.
-export default async function ChatPage({ params }: PageProps<"/chat/[[...id]]">) {
+// /chat is a new chat (in a project with ?project=<id>); /chat/<id> opens one of yours.
+export default async function ChatPage({ params, searchParams }: PageProps<"/chat/[[...id]]">) {
   const user = await requireUser();
   const { m } = await getI18n();
 
@@ -39,15 +40,33 @@ export default async function ChatPage({ params }: PageProps<"/chat/[[...id]]">)
   const jar = await cookies();
   // New chats start on the model this browser picked last, if it's still offered to this person.
   let model = allowedModel(jar.get(CHAT_MODEL_COOKIE)?.value, isAdmin)?.id ?? DEFAULT_MODEL;
+  let think = jar.get(CHAT_THINK_COOKIE)?.value !== "0";
+  let projectId: number | null = null;
   if (segments) {
     id = Number(segments[0]);
     const conversation = segments.length === 1 && Number.isInteger(id) ? getConversation(user.id, id) : undefined;
     if (!conversation) redirect("/chat");
     // A model since removed from the config, or now admin-only, shows (and is answered by) the default.
     model = allowedModel(conversation.model, isAdmin)?.id ?? DEFAULT_MODEL;
+    projectId = conversation.project_id;
+  } else {
+    // A new chat in a project starts on the project's model and Think setting, where it has them.
+    const raw = (await searchParams).project;
+    const project = getProject(user.id, Number(Array.isArray(raw) ? raw[0] : raw));
+    if (raw && !project) redirect("/chat");
+    if (project) {
+      projectId = project.id;
+      model = allowedModel(project.model, isAdmin)?.id ?? model;
+      if (project.think !== null) think = !!project.think;
+    }
   }
 
-  const conversations = listConversations(user.id).map(({ id, title, updated_at }) => ({ id, title, updated_at }));
+  const conversations = listConversations(user.id).map(({ id, title, updated_at, project_id }) => ({
+    id,
+    title,
+    updated_at,
+    project_id,
+  }));
   const messages = id
     ? listMessages(user.id, id)
         .filter((msg) => msg.role !== "system")
@@ -63,16 +82,18 @@ export default async function ChatPage({ params }: PageProps<"/chat/[[...id]]">)
 
   return (
     <ChatApp
-      key={id ?? "new"}
+      key={`${id ?? "new"}-${projectId ?? ""}`}
       initialConversations={conversations}
       initialId={id}
       initialMessages={messages}
       initialModel={model}
       initialUsage={{ sent: sentToday(user.id), cap: capFor(user.id) }}
       initialInstructions={getInstructions(user.id) ?? ""}
-      initialThink={jar.get(CHAT_THINK_COOKIE)?.value !== "0"}
+      initialThink={think}
       initialFiles={listFiles(user.id).map(toClientFile)}
       initialAttached={id ? attachedFileIds(user.id, id) : []}
+      initialProjects={listProjects(user.id).map((p) => toClientProject(user.id, p))}
+      projectId={projectId}
       isAdmin={isAdmin}
     />
   );

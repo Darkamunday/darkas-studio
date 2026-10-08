@@ -61,6 +61,13 @@ export const MAX_FILE_BYTES = 10 * 1024 * 1024;
 export const MAX_FILE_CHARS = 160_000;
 export const MAX_FILES_PER_USER = 50;
 
+/** Projects: how many one person can have, and the longest name and instructions. */
+export const MAX_PROJECTS_PER_USER = 30;
+export const PROJECT_NAME_MAX = 60;
+export const MAX_PROJECT_INSTRUCTIONS_CHARS = 4_000;
+/** The emoji a project can wear in the sidebar. */
+export const PROJECT_EMOJI = ["✦", "🎸", "🎤", "🎹", "🥁", "🎧", "📝", "📖", "🌙", "🔥", "🌸", "🖤", "💜", "🎬", "🎮", "🐾"];
+
 /** Longest message someone can send, in characters. */
 export const MAX_MESSAGE_CHARS = 20_000;
 

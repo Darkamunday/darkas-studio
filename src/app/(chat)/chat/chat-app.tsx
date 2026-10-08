@@ -10,6 +10,8 @@ import { Composer } from "./composer";
 import { ModelPicker } from "./model-picker";
 import { InstructionsDialog } from "./instructions-dialog";
 import { FilesDialog, PaperclipIcon } from "./files-dialog";
+import { MoveDialog, ProjectDialog } from "./project-dialog";
+import type { ClientProject } from "@/lib/chat/projects";
 import type { ClientFile } from "@/lib/chat/files";
 import { CHAT_MODEL_COOKIE, CHAT_THINK_COOKIE, MAX_REPLY_TOKENS, findChatModel } from "@/config/chat";
 import { useChatStream, type UiMessage } from "./use-chat-stream";
@@ -24,6 +26,8 @@ export function ChatApp({
   initialThink,
   initialFiles,
   initialAttached,
+  initialProjects,
+  projectId,
   isAdmin,
 }: {
   initialConversations: SidebarConversation[];
@@ -38,6 +42,9 @@ export function ChatApp({
   /** The person's reference files, and which ones this chat has attached. */
   initialFiles: ClientFile[];
   initialAttached: number[];
+  initialProjects: ClientProject[];
+  /** The project this chat is in (or a new chat is being started in); null for the main list. */
+  projectId: number | null;
   isAdmin: boolean;
 }) {
   const { locale, m } = useI18n();
@@ -58,6 +65,11 @@ export function ChatApp({
   const [files, setFiles] = useState(initialFiles);
   const [attached, setAttached] = useState(() => new Set(initialAttached));
   const [filesOpen, setFilesOpen] = useState(false);
+  const [projects, setProjects] = useState(initialProjects);
+  // null: closed; "new": creating one; a number: editing that project.
+  const [projectDialog, setProjectDialog] = useState<"new" | number | null>(null);
+  const [moving, setMoving] = useState<number | null>(null);
+  const project = projects.find((p) => p.id === projectId) ?? null;
   const attachedRef = useRef(attached);
 
   // Escape closes the phone drawer.
@@ -82,7 +94,7 @@ export function ChatApp({
 
   const touch = (id: number, patch: Partial<SidebarConversation> = {}) =>
     setConversations((list) => {
-      const found = list.find((c) => c.id === id) ?? { id, title: null, updated_at: 0 };
+      const found = list.find((c) => c.id === id) ?? { id, title: null, updated_at: 0, project_id: projectId };
       const updated = { ...found, updated_at: Math.floor(Date.now() / 1000), ...patch };
       return [updated, ...list.filter((c) => c.id !== id)];
     });
@@ -130,8 +142,23 @@ export function ChatApp({
       }).then((res) => !res.ok && setError(m.chat.errors.generic));
     }
   }
-  // Stable, so the dialog's Escape listener isn't re-attached on every render.
+  // Stable, so the dialogs' Escape listeners aren't re-attached on every render.
   const closeFiles = useCallback(() => setFilesOpen(false), []);
+  const closeProjectDialog = useCallback(() => setProjectDialog(null), []);
+  const closeMove = useCallback(() => setMoving(null), []);
+
+  /** Move a chat into a project (or out). If it's the open chat, follow it to its new place. */
+  async function move(id: number, target: number | null) {
+    setMoving(null);
+    const res = await fetch(`/api/chat/conversations/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: target }),
+    }).catch(() => null);
+    if (!res?.ok) return setError(m.chat.errors.generic);
+    setConversations((list) => list.map((c) => (c.id === id ? { ...c, project_id: target } : c)));
+    if (id === activeId) router.push(`/chat/${id}`);
+  }
 
   // ---- auto-scroll: follow the reply only while the reader is at the bottom ----
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -179,7 +206,7 @@ export function ChatApp({
     setError(null);
     setDraft("");
     setStick(true);
-    const accepted = await chat.send(content, model, think, [...attachedRef.current]);
+    const accepted = await chat.send(content, model, think, [...attachedRef.current], projectId);
     if (!accepted) setDraft((d) => d || content); // refused (e.g. daily limit): give their text back
   }
 
@@ -228,7 +255,7 @@ export function ChatApp({
     setAttached(attachedRef.current);
     chat.setMessages([]);
     setActiveId(null);
-    router.push("/chat");
+    router.push(projectId ? `/chat?project=${projectId}` : "/chat");
   }
 
   async function rename(id: number, title: string) {
@@ -259,11 +286,29 @@ export function ChatApp({
   const activeModel = findChatModel(model);
   // File tokens that fit alongside a short conversation (matches the server's check).
   const fileWindow = (activeModel?.contextTokens ?? 32_000) - MAX_REPLY_TOKENS - 2_500;
-  const inChat = files.filter((f) => f.always || attached.has(f.id));
+  const projectFiles = new Set(project?.fileIds ?? []);
+  const inChat = files.filter((f) => f.always || attached.has(f.id) || projectFiles.has(f.id));
+  // The sidebar lists the chats in the project being looked at, or those in no project.
+  const listed = conversations.filter((c) => (c.project_id ?? null) === projectId);
+  const projectsWithCounts = projects.map((p) => ({ ...p, count: conversations.filter((c) => c.project_id === p.id).length }));
 
   const activeTitle = conversations.find((c) => c.id === activeId)?.title ?? m.chat.untitled;
   const sidebarProps = {
-    conversations,
+    conversations: listed,
+    projects: projectsWithCounts,
+    project,
+    onNewProject: () => {
+      setDrawerOpen(false);
+      setProjectDialog("new");
+    },
+    onEditProject: () => {
+      setDrawerOpen(false);
+      if (project) setProjectDialog(project.id);
+    },
+    onMoveChat: (id: number) => {
+      setDrawerOpen(false);
+      setMoving(id);
+    },
     activeId,
     onNew: startNew,
     onNavigate: () => setDrawerOpen(false),
@@ -302,10 +347,40 @@ export function ChatApp({
         </div>
       )}
 
+      {projectDialog !== null && (
+        <ProjectDialog
+          project={projectDialog === "new" ? null : (projects.find((p) => p.id === projectDialog) ?? null)}
+          files={files}
+          isAdmin={isAdmin}
+          onSaved={(saved) => {
+            setProjectDialog(null);
+            const exists = projects.some((p) => p.id === saved.id);
+            setProjects((list) => (exists ? list.map((p) => (p.id === saved.id ? saved : p)) : [...list, saved]));
+            if (!exists) router.push(`/chat?project=${saved.id}`); // straight into the new project
+          }}
+          onDeleted={(id) => {
+            setProjectDialog(null);
+            setProjects((list) => list.filter((p) => p.id !== id));
+            setConversations((list) => list.map((c) => (c.project_id === id ? { ...c, project_id: null } : c)));
+            if (id === projectId) router.push(activeId ? `/chat/${activeId}` : "/chat");
+          }}
+          onClose={closeProjectDialog}
+        />
+      )}
+      {moving !== null && (
+        <MoveDialog
+          title={conversations.find((c) => c.id === moving)?.title ?? m.chat.untitled}
+          projects={projects}
+          current={conversations.find((c) => c.id === moving)?.project_id ?? null}
+          onMove={(target) => void move(moving, target)}
+          onClose={closeMove}
+        />
+      )}
       {filesOpen && (
         <FilesDialog
           files={files}
           attached={attached}
+          projectFiles={projectFiles}
           modelLabel={activeModel?.label ?? model}
           windowTokens={fileWindow}
           onFilesChange={setFiles}
@@ -329,7 +404,20 @@ export function ChatApp({
               <path d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <h1 className="min-w-0 flex-1 truncate text-sm font-medium text-muted">{activeTitle}</h1>
+          <h1 className="flex min-w-0 flex-1 items-center gap-2 text-sm font-medium text-muted">
+            {project && (
+              <button
+                type="button"
+                onClick={() => setProjectDialog(project.id)}
+                title={m.chat.projectSettings}
+                className="inline-flex max-w-[45%] flex-none items-center gap-1.5 rounded-lg bg-surface-2 px-2 py-1 text-xs text-fg transition hover:bg-surface-3"
+              >
+                <span aria-hidden>{project.emoji}</span>
+                <span className="truncate">{project.name}</span>
+              </button>
+            )}
+            <span className="truncate">{activeTitle}</span>
+          </h1>
           <button
             type="button"
             onClick={() => setFilesOpen(true)}
@@ -405,7 +493,9 @@ export function ChatApp({
               >
                 <PaperclipIcon className="h-3 w-3 flex-none" />
                 <span className="truncate">{f.name}</span>
-                {f.always ? (
+                {projectFiles.has(f.id) ? (
+                  <span className="rounded-full bg-pink/12 px-1.5 py-0.5 text-[10px] font-medium uppercase text-accent-fg">{m.chat.projectTag}</span>
+                ) : f.always ? (
                   <span className="rounded-full bg-violet/15 px-1.5 py-0.5 text-[10px] font-medium uppercase text-violet">{m.chat.alwaysOn}</span>
                 ) : (
                   <button
