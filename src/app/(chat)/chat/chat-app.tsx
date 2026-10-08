@@ -9,7 +9,9 @@ import { MessageList } from "./messages";
 import { Composer } from "./composer";
 import { ModelPicker } from "./model-picker";
 import { InstructionsDialog } from "./instructions-dialog";
-import { CHAT_MODEL_COOKIE, CHAT_THINK_COOKIE, findChatModel } from "@/config/chat";
+import { FilesDialog, PaperclipIcon } from "./files-dialog";
+import type { ClientFile } from "@/lib/chat/files";
+import { CHAT_MODEL_COOKIE, CHAT_THINK_COOKIE, MAX_REPLY_TOKENS, findChatModel } from "@/config/chat";
 import { useChatStream, type UiMessage } from "./use-chat-stream";
 
 export function ChatApp({
@@ -20,6 +22,8 @@ export function ChatApp({
   initialUsage,
   initialInstructions,
   initialThink,
+  initialFiles,
+  initialAttached,
   isAdmin,
 }: {
   initialConversations: SidebarConversation[];
@@ -31,6 +35,9 @@ export function ChatApp({
   initialInstructions: string;
   /** The Think toggle, as this browser last left it. */
   initialThink: boolean;
+  /** The person's reference files, and which ones this chat has attached. */
+  initialFiles: ClientFile[];
+  initialAttached: number[];
   isAdmin: boolean;
 }) {
   const { locale, m } = useI18n();
@@ -48,6 +55,10 @@ export function ChatApp({
   const [instructions, setInstructions] = useState(initialInstructions);
   const [instructionsOpen, setInstructionsOpen] = useState(false);
   const [makingSong, setMakingSong] = useState<number | null>(null);
+  const [files, setFiles] = useState(initialFiles);
+  const [attached, setAttached] = useState(() => new Set(initialAttached));
+  const [filesOpen, setFilesOpen] = useState(false);
+  const attachedRef = useRef(attached);
 
   // Escape closes the phone drawer.
   useEffect(() => {
@@ -89,18 +100,38 @@ export function ChatApp({
     onTitle: (title) => {
       if (activeIdRef.current !== null) touch(activeIdRef.current, { title });
     },
-    onError: (reason, cap) => {
+    onError: (reason, info) => {
       // The note under the box already says the limit's been reached.
-      if (reason === "daily_cap" && cap !== undefined) return setUsage({ sent: cap, cap });
+      if (reason === "daily_cap" && info?.cap !== undefined) return setUsage({ sent: info.cap, cap: info.cap });
       const text = (m.chat.errors as Record<string, string>)[reason] ?? m.chat.errors.generic;
-      setError(fmt(text, { cap: cap ?? "" }));
+      setError(fmt(text, { cap: info?.cap ?? "", model: info?.model ?? "" }));
     },
   });
 
   const activeIdRef = useRef(activeId);
   useLayoutEffect(() => {
     activeIdRef.current = activeId;
+    attachedRef.current = attached;
   });
+
+  /** Attach or detach a file for this chat (saved straight away once the chat exists). */
+  function toggleAttach(id: number) {
+    const next = new Set(attachedRef.current);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    attachedRef.current = next;
+    setAttached(next);
+    const chatId = activeIdRef.current;
+    if (chatId !== null) {
+      void fetch(`/api/chat/conversations/${chatId}/files`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileIds: [...next] }),
+      }).then((res) => !res.ok && setError(m.chat.errors.generic));
+    }
+  }
+  // Stable, so the dialog's Escape listener isn't re-attached on every render.
+  const closeFiles = useCallback(() => setFilesOpen(false), []);
 
   // ---- auto-scroll: follow the reply only while the reader is at the bottom ----
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -148,7 +179,7 @@ export function ChatApp({
     setError(null);
     setDraft("");
     setStick(true);
-    const accepted = await chat.send(content, model, think);
+    const accepted = await chat.send(content, model, think, [...attachedRef.current]);
     if (!accepted) setDraft((d) => d || content); // refused (e.g. daily limit): give their text back
   }
 
@@ -193,6 +224,8 @@ export function ChatApp({
     setError(null);
     setDraft("");
     setStick(true);
+    attachedRef.current = new Set();
+    setAttached(attachedRef.current);
     chat.setMessages([]);
     setActiveId(null);
     router.push("/chat");
@@ -223,6 +256,11 @@ export function ChatApp({
         ? fmt(m.chat.capReached, { cap: usage.cap ?? 0 })
         : plural(locale, m.chat.left, left);
 
+  const activeModel = findChatModel(model);
+  // File tokens that fit alongside a short conversation (matches the server's check).
+  const fileWindow = (activeModel?.contextTokens ?? 32_000) - MAX_REPLY_TOKENS - 2_500;
+  const inChat = files.filter((f) => f.always || attached.has(f.id));
+
   const activeTitle = conversations.find((c) => c.id === activeId)?.title ?? m.chat.untitled;
   const sidebarProps = {
     conversations,
@@ -233,6 +271,11 @@ export function ChatApp({
     onDelete: remove,
     isAdmin,
     hasInstructions: instructions.trim() !== "",
+    fileCount: files.length,
+    onOpenFiles: () => {
+      setDrawerOpen(false);
+      setFilesOpen(true);
+    },
     onOpenInstructions: () => {
       setDrawerOpen(false);
       setInstructionsOpen(true);
@@ -259,6 +302,17 @@ export function ChatApp({
         </div>
       )}
 
+      {filesOpen && (
+        <FilesDialog
+          files={files}
+          attached={attached}
+          modelLabel={activeModel?.label ?? model}
+          windowTokens={fileWindow}
+          onFilesChange={setFiles}
+          onToggleAttach={toggleAttach}
+          onClose={closeFiles}
+        />
+      )}
       {instructionsOpen && (
         <InstructionsDialog initial={instructions} onClose={closeInstructions} onSaved={setInstructions} />
       )}
@@ -276,6 +330,18 @@ export function ChatApp({
             </svg>
           </button>
           <h1 className="min-w-0 flex-1 truncate text-sm font-medium text-muted">{activeTitle}</h1>
+          <button
+            type="button"
+            onClick={() => setFilesOpen(true)}
+            title={m.chat.files}
+            aria-label={`${m.chat.files}${inChat.length ? ` (${inChat.length})` : ""}`}
+            className={`inline-flex h-[34px] items-center gap-1.5 rounded-xl border px-2.5 text-sm transition ${
+              inChat.length ? "border-violet/50 bg-violet/12 text-violet" : "border-line bg-surface text-subtle hover:border-line-strong hover:text-fg"
+            }`}
+          >
+            <PaperclipIcon className="h-4 w-4" />
+            {inChat.length > 0 && <span className="tabular-nums">{inChat.length}</span>}
+          </button>
           {canThink && (
             <button
               type="button"
@@ -330,6 +396,32 @@ export function ChatApp({
           )}
         </div>
 
+        {inChat.length > 0 && (
+          <div className="mx-auto flex w-full max-w-3xl flex-wrap gap-1.5 px-4 pb-2">
+            {inChat.map((f) => (
+              <span
+                key={f.id}
+                className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-line bg-surface py-1 pl-2.5 pr-1 text-xs text-muted"
+              >
+                <PaperclipIcon className="h-3 w-3 flex-none" />
+                <span className="truncate">{f.name}</span>
+                {f.always ? (
+                  <span className="rounded-full bg-violet/15 px-1.5 py-0.5 text-[10px] font-medium uppercase text-violet">{m.chat.alwaysOn}</span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => toggleAttach(f.id)}
+                    aria-label={`${m.chat.detachFile}: ${f.name}`}
+                    title={m.chat.detachFile}
+                    className="grid h-5 w-5 place-items-center rounded-full text-subtle transition hover:bg-surface-3 hover:text-fg"
+                  >
+                    ×
+                  </button>
+                )}
+              </span>
+            ))}
+          </div>
+        )}
         {error && (
           <p role="alert" className="mx-auto mb-2 w-full max-w-3xl px-4 text-sm text-danger">
             {error}

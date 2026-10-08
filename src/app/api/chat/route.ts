@@ -14,10 +14,19 @@ import {
 } from "@/lib/chat/store";
 import { buildPrompt, estimateTokens, systemPrompt } from "@/lib/chat/context";
 import { recordSpend } from "@/lib/chat/spend";
+import { filesForChat, setAttachedFiles } from "@/lib/chat/files";
 import { getMasterPrompt } from "@/lib/chat/master-prompt";
 import type { ChatEvent } from "@/lib/chat/events";
 import { OllamaError, completeChat, streamChat, type ChatTurn, type TokenUsage } from "@/lib/chat/ollama";
-import { CHAT_MODELS, DEFAULT_MODEL, MAX_MESSAGE_CHARS, allowedModel, findChatModel } from "@/config/chat";
+import {
+  CHAT_MODELS,
+  DEFAULT_MODEL,
+  MAX_FILES_PER_USER,
+  MAX_MESSAGE_CHARS,
+  MAX_REPLY_TOKENS,
+  allowedModel,
+  findChatModel,
+} from "@/config/chat";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +36,8 @@ const Body = z.union([
     content: z.string().trim().min(1).max(MAX_MESSAGE_CHARS),
     model: z.string().optional(),
     think: z.boolean().optional(),
+    /** Files picked before a new chat existed; attached when it's created. */
+    fileIds: z.array(z.number().int().positive()).max(MAX_FILES_PER_USER).optional(),
   }),
   z.object({
     conversationId: z.number().int().positive(),
@@ -37,6 +48,9 @@ const Body = z.union([
 ]);
 
 const TITLE_MAX = 60;
+
+/** Room kept for the conversation itself when reference files fill the model's window. */
+const MIN_CONVERSATION_TOKENS = 2_000;
 
 function fallbackTitle(text: string) {
   const oneLine = text.replace(/\s+/g, " ").trim();
@@ -80,6 +94,22 @@ export async function POST(req: NextRequest) {
   const requestedModel = allowedModel(body.model, isAdmin);
   if (body.model && !requestedModel) return Response.json({ error: "bad_model" }, { status: 400 });
 
+  // The model that will answer: the one asked for, else the chat's own (if still allowed), else the default.
+  const model =
+    requestedModel ??
+    (conversation ? allowedModel(conversation.model, isAdmin) : undefined) ??
+    findChatModel(DEFAULT_MODEL) ??
+    CHAT_MODELS[0];
+
+  // Reference files go in the system prompt. Check they fit before saving anything, so a refused
+  // message isn't stored or counted.
+  const newFileIds = !conversation && "fileIds" in body ? (body.fileIds ?? []) : [];
+  const files = filesForChat(user.id, conversation?.id ?? null, newFileIds);
+  const system = systemPrompt(getMasterPrompt().text, getInstructions(user.id), files);
+  if (estimateTokens([{ role: "system", content: system }]) > model.contextTokens - MAX_REPLY_TOKENS - MIN_CONVERSATION_TOKENS) {
+    return Response.json({ error: "files_too_big", model: model.label }, { status: 413 });
+  }
+
   // Save the user's side first, so it's kept even if the model never answers.
   let userMessageId: number | null = null;
   const conversationId = transaction(() => {
@@ -93,13 +123,12 @@ export async function POST(req: NextRequest) {
     return id;
   });
   conversation = getConversation(user.id, conversationId)!;
+  if (newFileIds.length) setAttachedFiles(user.id, conversationId, newFileIds);
 
   const history = listMessages(user.id, conversationId).map<ChatTurn>((m) => ({ role: m.role, content: m.content }));
   if (history.at(-1)?.role !== "user") return Response.json({ error: "nothing_to_answer" }, { status: 400 });
 
-  // A model removed from the config since the chat started, or now admin-only, falls back to the default.
-  const model = allowedModel(conversation.model, isAdmin) ?? findChatModel(DEFAULT_MODEL) ?? CHAT_MODELS[0];
-  const prompt = buildPrompt(systemPrompt(getMasterPrompt().text, getInstructions(user.id)), history, model);
+  const prompt = buildPrompt(system, history, model);
   const needsTitle = !conversation.title;
   const firstUserMessage = history.find((m) => m.role === "user")!.content;
 

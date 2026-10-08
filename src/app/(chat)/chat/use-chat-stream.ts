@@ -14,15 +14,22 @@ export type UiMessage = {
   thinkingMs?: number | null;
 };
 
-type Request = { conversationId?: number; content?: string; regenerate?: true; model?: string; think?: boolean };
+type Request = {
+  conversationId?: number;
+  content?: string;
+  regenerate?: true;
+  model?: string;
+  think?: boolean;
+  fileIds?: number[];
+};
 
 type Handlers = {
   onConversation?: (id: number, isNew: boolean) => void;
   onTitle?: (title: string) => void;
   onUsage?: (usage: { sent: number; cap: number | null }) => void;
   onFinish?: () => void;
-  /** An error reason (a key of m.chat.errors) and, for daily_cap, the cap. */
-  onError?: (reason: string, cap?: number) => void;
+  /** An error reason (a key of m.chat.errors), with the cap (daily_cap) or model (files_too_big). */
+  onError?: (reason: string, info?: { cap?: number; model?: string }) => void;
 };
 
 let keySeq = 0;
@@ -65,10 +72,10 @@ export function useChatStream(initial: UiMessage[], conversationId: number | nul
         signal: ctrl.signal,
       });
       if (!res.ok || !res.body) {
-        const err = (await res.json().catch(() => ({}))) as { error?: string; cap?: number };
+        const err = (await res.json().catch(() => ({}))) as { error?: string; cap?: number; model?: string };
         // Refused before anything was saved: put the list back as it was.
         setMessages(before);
-        h.onError?.(err.error ?? "generic", err.cap);
+        h.onError?.(err.error ?? "generic", { cap: err.cap, model: err.model });
         return false;
       }
       const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
@@ -126,7 +133,7 @@ export function useChatStream(initial: UiMessage[], conversationId: number | nul
   }, []);
 
   const send = useCallback(
-    (content: string, model?: string, think?: boolean) => {
+    (content: string, model?: string, think?: boolean, fileIds?: number[]) => {
       const userKey = newKey();
       const before = messagesRef.current;
       setMessages((list) => [
@@ -134,7 +141,9 @@ export function useChatStream(initial: UiMessage[], conversationId: number | nul
         { key: userKey, id: null, role: "user", content },
         { key: newKey(), id: null, role: "assistant", content: "" },
       ]);
-      return run({ conversationId: idRef.current ?? undefined, content, model, think }, userKey, before);
+      // Files picked before the chat exists ride along with its first message.
+      const files = idRef.current === null && fileIds?.length ? fileIds : undefined;
+      return run({ conversationId: idRef.current ?? undefined, content, model, think, fileIds: files }, userKey, before);
     },
     [run],
   );

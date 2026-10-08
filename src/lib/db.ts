@@ -245,6 +245,28 @@ const MIGRATIONS: string[] = [
   `
   ALTER TABLE messages ADD COLUMN song_draft TEXT;
   `,
+  // 15: reference files for chat (character bibles, notes…). Each person's own: the extracted text
+  // is kept, not the upload. A file goes into a chat when attached to it, or into all their chats
+  // when `always` is on.
+  `
+  CREATE TABLE chat_files (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name       TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL,
+    text       TEXT NOT NULL,
+    always     INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+  CREATE INDEX chat_files_user ON chat_files(user_id);
+
+  CREATE TABLE conversation_files (
+    conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    file_id         INTEGER NOT NULL REFERENCES chat_files(id) ON DELETE CASCADE,
+    PRIMARY KEY (conversation_id, file_id)
+  );
+  CREATE INDEX conversation_files_file ON conversation_files(file_id);
+  `,
 ];
 
 function open(): DatabaseSync {

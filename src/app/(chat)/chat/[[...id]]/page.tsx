@@ -5,6 +5,7 @@ import { capFor, hasChatAccess, sentToday } from "@/lib/chat/access";
 import { cookies } from "next/headers";
 import { CHAT_MODEL_COOKIE, CHAT_THINK_COOKIE, DEFAULT_MODEL, allowedModel } from "@/config/chat";
 import { getConversation, getInstructions, listConversations, listMessages } from "@/lib/chat/store";
+import { attachedFileIds, listFiles, toClientFile } from "@/lib/chat/files";
 import { getI18n } from "@/lib/i18n/server";
 import { card } from "@/components/ui";
 import { ChatApp } from "../chat-app";
@@ -70,6 +71,8 @@ export default async function ChatPage({ params }: PageProps<"/chat/[[...id]]">)
       initialUsage={{ sent: sentToday(user.id), cap: capFor(user.id) }}
       initialInstructions={getInstructions(user.id) ?? ""}
       initialThink={jar.get(CHAT_THINK_COOKIE)?.value !== "0"}
+      initialFiles={listFiles(user.id).map(toClientFile)}
+      initialAttached={id ? attachedFileIds(user.id, id) : []}
       isAdmin={isAdmin}
     />
   );

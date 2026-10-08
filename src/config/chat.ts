@@ -56,6 +56,11 @@ export const MAX_MASTER_PROMPT_CHARS = 8_000;
 /** Longest custom instructions a person can save, in characters. */
 export const MAX_INSTRUCTIONS_CHARS = 1_500;
 
+/** Reference files: biggest upload, most text kept from one file, and how many one person can have. */
+export const MAX_FILE_BYTES = 10 * 1024 * 1024;
+export const MAX_FILE_CHARS = 160_000;
+export const MAX_FILES_PER_USER = 50;
+
 /** Longest message someone can send, in characters. */
 export const MAX_MESSAGE_CHARS = 20_000;
 

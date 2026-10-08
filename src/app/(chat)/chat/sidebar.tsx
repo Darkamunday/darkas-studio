@@ -6,6 +6,7 @@ import { useI18n } from "@/lib/i18n/client";
 import { fmt } from "@/lib/i18n/format";
 import { CHAT_TITLE_MAX } from "@/config/chat";
 import { NavLinks } from "@/components/nav-links";
+import { PaperclipIcon } from "./files-dialog";
 
 export type SidebarConversation = { id: number; title: string | null; updated_at: number };
 
@@ -36,6 +37,8 @@ export function Sidebar({
   isAdmin,
   hasInstructions,
   onOpenInstructions,
+  fileCount,
+  onOpenFiles,
 }: {
   conversations: SidebarConversation[];
   activeId: number | null;
@@ -48,6 +51,8 @@ export function Sidebar({
   isAdmin: boolean;
   hasInstructions: boolean;
   onOpenInstructions: () => void;
+  fileCount: number;
+  onOpenFiles: () => void;
 }) {
   const { m } = useI18n();
   const [editing, setEditing] = useState<number | null>(null);
@@ -153,6 +158,15 @@ export function Sidebar({
         )}
       </nav>
       <div className="border-t border-line/70 p-2">
+        <button
+          type="button"
+          onClick={onOpenFiles}
+          className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-muted transition hover:bg-surface-2 hover:text-fg"
+        >
+          <PaperclipIcon className="h-4 w-4 flex-none" />
+          <span className="flex-1 truncate text-left">{m.chat.files}</span>
+          {fileCount > 0 && <span className="rounded-full bg-surface-3 px-2 py-0.5 text-xs tabular-nums text-muted">{fileCount}</span>}
+        </button>
         <button
           type="button"
           onClick={onOpenInstructions}
