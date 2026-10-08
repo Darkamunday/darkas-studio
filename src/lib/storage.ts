@@ -30,6 +30,11 @@ const EXT_BY_TYPE: Record<string, string> = {
   "image/jpeg": ".jpg",
   "image/png": ".png",
   "image/webp": ".webp",
+  "image/gif": ".gif",
+  "video/mp4": ".mp4",
+  "video/webm": ".webm",
+  "audio/ogg": ".ogg",
+  "audio/flac": ".flac",
 };
 
 /**

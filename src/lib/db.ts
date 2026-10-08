@@ -363,6 +363,60 @@ const MIGRATIONS: string[] = [
     PRIMARY KEY (user_id, day)
   );
   `,
+  // 19: MCP connections for chat. Servers the chat model can use tools from (Comfy Cloud is added
+  // here, its key read from COMFY_CLOUD_API_KEY rather than stored); each tool's access (off / admins /
+  // everyone) and whether a person must approve it before it runs; the tools each chat has loaded (so
+  // the model only carries full definitions for what it uses); and every tool call, for the cards in
+  // the chat and for approvals. Media a tool produces goes in chat_images with its kind.
+  `
+  CREATE TABLE mcp_servers (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug             TEXT NOT NULL UNIQUE,
+    name             TEXT NOT NULL,
+    url              TEXT NOT NULL,
+    header_name      TEXT,
+    header_value     TEXT,
+    header_env       TEXT,
+    enabled          INTEGER NOT NULL DEFAULT 1,
+    builtin          INTEGER NOT NULL DEFAULT 0,
+    tools_json       TEXT,
+    tools_fetched_at INTEGER,
+    created_at       INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+  INSERT INTO mcp_servers (slug, name, url, header_name, header_env, builtin)
+    VALUES ('comfy', 'Comfy Cloud', 'https://cloud.comfy.org/mcp', 'X-API-Key', 'COMFY_CLOUD_API_KEY', 1);
+
+  CREATE TABLE mcp_tools (
+    server_id INTEGER NOT NULL REFERENCES mcp_servers(id) ON DELETE CASCADE,
+    name      TEXT NOT NULL,
+    access    TEXT NOT NULL DEFAULT 'off' CHECK (access IN ('off', 'admins', 'everyone')),
+    approval  INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY (server_id, name)
+  );
+
+  CREATE TABLE conversation_tools (
+    conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    server_id       INTEGER NOT NULL REFERENCES mcp_servers(id) ON DELETE CASCADE,
+    name            TEXT NOT NULL,
+    PRIMARY KEY (conversation_id, server_id, name)
+  );
+
+  CREATE TABLE chat_tool_calls (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    message_id      INTEGER REFERENCES messages(id) ON DELETE SET NULL,
+    server_id       INTEGER REFERENCES mcp_servers(id) ON DELETE SET NULL,
+    tool            TEXT NOT NULL,
+    args            TEXT NOT NULL,
+    status          TEXT NOT NULL CHECK (status IN ('awaiting_approval', 'running', 'done', 'failed', 'declined')),
+    result          TEXT,
+    created_at      INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+  CREATE INDEX chat_tool_calls_conversation ON chat_tool_calls(conversation_id);
+
+  ALTER TABLE chat_images ADD COLUMN kind TEXT NOT NULL DEFAULT 'image';
+  `,
 ];
 
 function open(): DatabaseSync {

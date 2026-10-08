@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatEvent } from "@/lib/chat/events";
 import type { ClientImage } from "@/lib/chat/images";
+import type { ClientToolCall } from "@/lib/chat/tools";
 
 export type UiMessage = {
   /** Stable React key; real ids arrive from the server as the stream goes. */
@@ -15,6 +16,8 @@ export type UiMessage = {
   thinkingMs?: number | null;
   /** Images made for this reply. */
   images?: ClientImage[];
+  /** Connected tools this reply used (or wants approval for). */
+  tools?: ClientToolCall[];
 };
 
 /** Image settings sent along with a message: the model and shape picked, and whether to improve the description. */
@@ -30,6 +33,7 @@ type Request = {
   projectId?: number;
   skillIds?: number[];
   image?: ImagePrefs;
+  resume?: { toolCallId: number; decision: "approve" | "decline" };
 };
 
 /** Settings for a send. Files, project and skills only matter for a chat's first message (they're saved with it). */
@@ -132,6 +136,21 @@ export function useChatStream(initial: UiMessage[], conversationId: number | nul
             case "title":
               h.onTitle?.(event.title);
               break;
+            case "tool": {
+              // A card can belong to an earlier reply (e.g. the one that asked for approval): update it there.
+              gotReply = true;
+              const call = event.call;
+              setMessages((list) => {
+                const owner = list.findIndex((m) => m.tools?.some((t) => t.id === call.id));
+                const at = owner >= 0 ? owner : list.length - 1;
+                return list.map((m, i) => {
+                  if (i !== at) return m;
+                  const tools = m.tools ?? [];
+                  return { ...m, tools: tools.some((t) => t.id === call.id) ? tools.map((t) => (t.id === call.id ? call : t)) : [...tools, call] };
+                });
+              });
+              break;
+            }
             case "image": {
               gotReply = true;
               const img = event.image;
@@ -203,7 +222,18 @@ export function useChatStream(initial: UiMessage[], conversationId: number | nul
     [run],
   );
 
+  /** After an approval card: run (or skip) the tool, and let the model carry on in a new reply. */
+  const resume = useCallback(
+    (toolCallId: number, decision: "approve" | "decline", model?: string, think?: boolean, image?: ImagePrefs) => {
+      if (idRef.current === null) return Promise.resolve(false);
+      const before = messagesRef.current;
+      setMessages((list) => [...list, { key: newKey(), id: null, role: "assistant", content: "" }]);
+      return run({ conversationId: idRef.current, resume: { toolCallId, decision }, model, think, image }, null, before);
+    },
+    [run],
+  );
+
   const stop = useCallback(() => abortRef.current?.abort(), []);
 
-  return { messages, setMessages, streaming, send, regenerate, stop };
+  return { messages, setMessages, streaming, send, regenerate, resume, stop };
 }

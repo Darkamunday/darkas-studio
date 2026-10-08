@@ -67,6 +67,13 @@ Nothing below is in git — **back these up together**, since catalogue rows poi
   in `src/lib/db.ts` run automatically on startup.
 - `$MEDIA_DIR/audio`, `$MEDIA_DIR/covers` — downloaded MP3s and cover art.
 
+**Chat connections (MCP).** The chat assistant can use tools from MCP servers listed under Admin →
+Connections. Comfy Cloud is built in (it uses `COMFY_CLOUD_API_KEY`; `COMFY_MCP_URL` overrides its
+address); other servers are added there with an address and an optional auth header — those keys are
+stored in the database. Each tool is Off, Admins or Everyone, and "Ask first" tools pause the chat
+with an approval card before they run. The model sees a short catalogue and loads a tool's full
+definition only when it needs it. Media a tool returns is copied into `$MEDIA_DIR/chat-images`.
+
 **Backups.** A systemd timer (`deploy/music-app-backup.timer`, installed in `/etc/systemd/system/`) runs
 `deploy/backup.mjs` every night at about 03:30. It takes a consistent copy of `app.db` while the app
 runs, checks it, and writes `app-YYYY-MM-DD-HHMM.db.gz` to `$MEDIA_DIR/backups` (a different disk from

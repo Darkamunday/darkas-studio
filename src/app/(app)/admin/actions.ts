@@ -9,6 +9,15 @@ import { SunoError } from "@/lib/suno";
 import { fetchTimedLyrics, getTimingTrack } from "@/lib/timed-lyrics";
 import { canViewTrack } from "@/lib/tracks";
 import { setMasterPrompt } from "@/lib/chat/master-prompt";
+import {
+  addServer,
+  deleteServer,
+  refreshTools,
+  setServerEnabled,
+  setToolAccess,
+  setToolApproval,
+  type Access,
+} from "@/lib/mcp/registry";
 import { MAX_MASTER_PROMPT_CHARS } from "@/config/chat";
 
 // Unambiguous alphabet (no 0/O, 1/I/L).
@@ -135,4 +144,73 @@ export async function fetchTimedLyricsAction(trackId: number): Promise<{ ok: boo
   revalidatePath(`/admin/lyrics/${track.id}`);
   revalidatePath("/admin", "layout");
   return { ok: true };
+}
+
+// ---- MCP connections -----------------------------------------------------------------------
+
+const ACCESS = new Set(["off", "admins", "everyone"]);
+
+export async function addMcpServer(_prev: { error?: string } | undefined, formData: FormData): Promise<{ error?: string }> {
+  await requireAdmin();
+  const name = String(formData.get("name") ?? "").trim().slice(0, 40);
+  const url = String(formData.get("url") ?? "").trim();
+  const headerName = String(formData.get("headerName") ?? "").trim() || null;
+  const headerValue = String(formData.get("headerValue") ?? "").trim() || null;
+  // https anywhere; plain http only for a server on this machine.
+  if (!name || !/^(https:\/\/\S+|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/\S*)$/.test(url)) return { error: "bad_server" };
+  const id = addServer({ name, url, headerName, headerValue: headerName ? headerValue : null });
+  try {
+    await refreshTools(id);
+  } catch {
+    revalidatePath("/admin", "layout");
+    return { error: "refresh_failed" };
+  }
+  revalidatePath("/admin", "layout");
+  return {};
+}
+
+export async function refreshMcpServer(_prev: { error?: string } | undefined, formData: FormData): Promise<{ error?: string }> {
+  await requireAdmin();
+  try {
+    await refreshTools(Number(formData.get("serverId")));
+  } catch {
+    return { error: "refresh_failed" };
+  }
+  revalidatePath("/admin", "layout");
+  return {};
+}
+
+export async function removeMcpServer(formData: FormData) {
+  await requireAdmin();
+  deleteServer(Number(formData.get("serverId")));
+  revalidatePath("/admin", "layout");
+}
+
+export async function setMcpServerEnabled(formData: FormData) {
+  await requireAdmin();
+  setServerEnabled(Number(formData.get("serverId")), formData.get("enabled") === "1");
+  revalidatePath("/admin", "layout");
+}
+
+export async function setMcpToolAccess(formData: FormData) {
+  await requireAdmin();
+  const access = String(formData.get("access"));
+  if (!ACCESS.has(access)) return;
+  setToolAccess(Number(formData.get("serverId")), String(formData.get("tool")), access as Access);
+  revalidatePath("/admin", "layout");
+}
+
+export async function setMcpToolApproval(formData: FormData) {
+  await requireAdmin();
+  setToolApproval(Number(formData.get("serverId")), String(formData.get("tool")), formData.get("approval") === "1");
+  revalidatePath("/admin", "layout");
+}
+
+/** Set every tool on a server to one access level at once. */
+export async function setMcpAllAccess(formData: FormData) {
+  await requireAdmin();
+  const access = String(formData.get("access"));
+  if (!ACCESS.has(access)) return;
+  db.prepare("UPDATE mcp_tools SET access = ? WHERE server_id = ?").run(access, Number(formData.get("serverId")));
+  revalidatePath("/admin", "layout");
 }

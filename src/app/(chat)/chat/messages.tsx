@@ -7,6 +7,8 @@ import { Markdown } from "./markdown";
 import { CopyAction } from "./copy-action";
 import type { UiMessage } from "./use-chat-stream";
 import { ImageCard } from "./image-card";
+import { ToolCard } from "./tool-card";
+import type { ClientToolCall } from "@/lib/chat/tools";
 import type { ClientImage } from "@/lib/chat/images";
 
 export function MessageList({
@@ -16,9 +18,12 @@ export function MessageList({
   onMakeSong,
   makingSong,
   onImageAgain,
+  onDecide,
 }: {
   messages: UiMessage[];
   streaming: boolean;
+  /** Approve or skip a tool that's waiting. */
+  onDecide?: (id: number, decision: "approve" | "decline") => void;
   /** Make another image like this one. */
   onImageAgain?: (image: ClientImage) => void;
   /** Turn a saved reply into a song on the Create page. */
@@ -43,6 +48,8 @@ export function MessageList({
             <AssistantMessage
               content={msg.content}
               images={msg.images}
+              tools={msg.tools}
+              onDecide={streaming ? undefined : onDecide}
               onImageAgain={streaming ? undefined : onImageAgain}
               thinking={msg.thinking}
               thinkingMs={msg.thinkingMs}
@@ -94,6 +101,8 @@ function SlashCommand({ content }: { content: string }) {
 function AssistantMessage({
   content,
   images = [],
+  tools = [],
+  onDecide,
   onImageAgain,
   thinking,
   thinkingMs,
@@ -104,6 +113,8 @@ function AssistantMessage({
 }: {
   content: string;
   images?: ClientImage[];
+  tools?: ClientToolCall[];
+  onDecide?: (id: number, decision: "approve" | "decline") => void;
   onImageAgain?: (image: ClientImage) => void;
   thinking?: string;
   thinkingMs?: number | null;
@@ -126,12 +137,15 @@ function AssistantMessage({
       <div className="min-w-0 flex-1 pt-0.5">
         <span className="sr-only">{m.chat.assistant}</span>
         {thinking && <ThinkingBlock text={thinking} ms={thinkingMs ?? null} active={live && !content} />}
+        {tools.map((t) => (
+          <ToolCard key={t.id} call={t} onDecide={onDecide} />
+        ))}
         {shown ? (
           <>
             <Markdown content={shown} />
             {live && <span aria-hidden className="mt-1 inline-block h-4 w-1.5 animate-pulse rounded-sm bg-pink align-middle" />}
           </>
-        ) : live && !thinking && images.length === 0 ? (
+        ) : live && !thinking && images.length === 0 && tools.length === 0 ? (
           <TypingDots label={m.chat.thinking} />
         ) : null}
         {images.map((img) => (

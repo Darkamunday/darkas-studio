@@ -18,6 +18,16 @@ import { filesForChat, setAttachedFiles } from "@/lib/chat/files";
 import { getProject } from "@/lib/chat/projects";
 import { setPinnedSkills, skillsForMessage, slashSlug } from "@/lib/chat/skills";
 import { getMasterPrompt } from "@/lib/chat/master-prompt";
+import {
+  LOAD_TOOLS,
+  attachToolCallsToMessage,
+  declineToolCall,
+  loadTools,
+  pendingApproval,
+  runToolCall,
+  toolsetFor,
+  type ClientToolCall,
+} from "@/lib/chat/tools";
 import type { ChatEvent } from "@/lib/chat/events";
 import {
   OllamaError,
@@ -35,6 +45,7 @@ import {
   imageCapFor,
   listImages,
   startImage,
+  type ClientImage,
 } from "@/lib/chat/images";
 import {
   DEFAULT_IMAGE_MODEL,
@@ -86,7 +97,20 @@ const Body = z.union([
     think: z.boolean().optional(),
     image: ImagePrefs,
   }),
+  // Carry on after an approval card: run (or skip) the paused tool, then let the model continue.
+  z.object({
+    conversationId: z.number().int().positive(),
+    resume: z.object({ toolCallId: z.number().int().positive(), decision: z.enum(["approve", "decline"]) }),
+    model: z.string().optional(),
+    think: z.boolean().optional(),
+    image: ImagePrefs,
+  }),
 ]);
+
+/** Most model calls in one reply when it uses tools (load, run, check, fetch…). */
+const MAX_TOOL_STEPS = 12;
+/** Most images the model may make itself in one reply. */
+const MAX_IMAGES_PER_REPLY = 2;
 
 const TITLE_MAX = 60;
 
@@ -155,11 +179,14 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return Response.json({ error: "bad_request" }, { status: 400 });
   const body = parsed.data;
 
+  const resuming = "resume" in body ? body.resume : null;
   const cap = capFor(user.id);
-  if (cap !== null && sentToday(user.id) >= cap) return Response.json({ error: "daily_cap", cap }, { status: 429 });
+  if (!resuming && cap !== null && sentToday(user.id) >= cap) return Response.json({ error: "daily_cap", cap }, { status: 429 });
 
   let conversation = body.conversationId ? getConversation(user.id, body.conversationId) : undefined;
   if (body.conversationId && !conversation) return Response.json({ error: "not_found" }, { status: 404 });
+  const paused = resuming ? pendingApproval(user.id, resuming.toolCallId) : undefined;
+  if (resuming && (!paused || paused.conversation_id !== conversation?.id)) return Response.json({ error: "not_found" }, { status: 404 });
 
   const isAdmin = !!user.is_admin;
   const requestedModel = allowedModel(body.model, isAdmin);
@@ -193,20 +220,24 @@ export async function POST(req: NextRequest) {
     extraIds: newSkillIds,
     slug: asked ? slashSlug(asked) : null,
   });
-  const system = systemPrompt({
-    base: getMasterPrompt().text,
-    instructions: getInstructions(user.id),
-    project: project ? { name: project.name, instructions: project.instructions } : null,
-    skills,
-    files,
-  });
+  // Connected tools (MCP): models that can call tools get a short catalogue and load what they need.
+  const imageCommand = asked ? /^\/image(?:\s+([\s\S]*))?$/.exec(asked) : null;
+  const toolset = toolsetFor(isAdmin, conversation?.id ?? null);
+  const useTools = !imageCommand && !!model.tools;
+  const system =
+    systemPrompt({
+      base: getMasterPrompt().text,
+      instructions: getInstructions(user.id),
+      project: project ? { name: project.name, instructions: project.instructions } : null,
+      skills,
+      files,
+    }) + (useTools && toolset.catalogue ? `\n\n${toolset.catalogue}` : "");
   if (estimateTokens([{ role: "system", content: system }]) > model.contextTokens - MAX_REPLY_TOKENS - MIN_CONVERSATION_TOKENS) {
     return Response.json({ error: "files_too_big", model: model.label }, { status: 413 });
   }
 
   // Images: "/image <description>" makes one directly; otherwise models that can call tools may make
   // one themselves. Both need image access and allowance left today.
-  const imageCommand = asked ? /^\/image(?:\s+([\s\S]*))?$/.exec(asked) : null;
   const imagePrompt = imageCommand?.[1]?.trim().slice(0, MAX_IMAGE_PROMPT_CHARS) ?? "";
   const imageModel = allowedImageModel(body.image?.model, isAdmin)?.id ?? DEFAULT_IMAGE_MODEL;
   const imageAspect: ImageAspect = body.image?.aspect ?? "square";
@@ -215,7 +246,7 @@ export async function POST(req: NextRequest) {
     if (!hasImageAccess(user.id)) return Response.json({ error: "images_disabled" }, { status: 403 });
     if (!canMakeImage(user.id)) return Response.json({ error: "image_cap", cap: imageCapFor(user.id) }, { status: 429 });
   }
-  const offerImageTool = !imageCommand && !!model.tools && canMakeImage(user.id);
+  const offerImageTool = useTools && canMakeImage(user.id);
 
   // Save the user's side first, so it's kept even if the model never answers.
   let userMessageId: number | null = null;
@@ -225,8 +256,8 @@ export async function POST(req: NextRequest) {
       setConversationModel(user.id, id, requestedModel.id);
     }
     if ("regenerate" in body) dropLastAssistant(id);
-    else userMessageId = addMessage(id, "user", body.content);
-    recordSend(user.id);
+    else if ("content" in body) userMessageId = addMessage(id, "user", body.content);
+    if (!resuming) recordSend(user.id);
     return id;
   });
   conversation = getConversation(user.id, conversationId)!;
@@ -237,7 +268,7 @@ export async function POST(req: NextRequest) {
   const history = listMessages(user.id, conversationId)
     .map<ChatTurn>((m) => ({ role: m.role, content: m.role === "assistant" ? stripImageNotes(m.content) : m.content }))
     .filter((m) => m.role !== "assistant" || m.content);
-  if (history.at(-1)?.role !== "user") return Response.json({ error: "nothing_to_answer" }, { status: 400 });
+  if (!resuming && history.at(-1)?.role !== "user") return Response.json({ error: "nothing_to_answer" }, { status: 400 });
 
   // The model can't see images, so ones it already made are described in the system prompt.
   const madeImages = listImages(user.id, conversationId)
@@ -245,7 +276,7 @@ export async function POST(req: NextRequest) {
     .slice(-10)
     .map((i) => i.prompt.slice(0, 300));
   const prompt = buildPrompt(madeImages.length ? `${system}${imagesNote(madeImages)}` : system, history, model);
-  const needsTitle = !conversation.title;
+  const needsTitle = !conversation.title && !resuming;
   const firstUserMessage = history.find((m) => m.role === "user")!.content;
 
   const encoder = new TextEncoder();
@@ -270,6 +301,17 @@ export async function POST(req: NextRequest) {
       let messageId: number | null = null;
       let thinkingMs: number | null = null;
       const imageIds: number[] = [];
+      const toolCallIds: number[] = [];
+      let imagesMade = 0;
+      // Set after a tool step: the next text starts a new paragraph.
+      let breakBeforeText = false;
+      const onToolUpdate = (call: ClientToolCall) => send({ type: "tool", call });
+      const showMedia = (media: ClientImage[]) => {
+        for (const m of media) {
+          imageIds.push(m.id);
+          send({ type: "image", image: m });
+        }
+      };
 
       /** Make one image, telling the browser as it starts and as it finishes. */
       const makeImage = async (description: string, aspect: ImageAspect) => {
@@ -305,6 +347,11 @@ export async function POST(req: NextRequest) {
               send({ type: "thinking", text: piece.text });
             } else {
               if (thinkStart !== null) thinkEnd ??= Date.now();
+              if (breakBeforeText && reply.trim()) {
+                reply += "\n\n";
+                send({ type: "delta", text: "\n\n" });
+              }
+              breakBeforeText = false;
               reply += piece.text;
               output += piece.text;
               send({ type: "delta", text: piece.text });
@@ -338,31 +385,95 @@ export async function POST(req: NextRequest) {
           }
           await makeImage(description, imageAspect);
         } else {
-          const calls = await streamTurn(prompt, offerImageTool ? [IMAGE_TOOL] : undefined);
-          const imageCalls = calls.filter((c) => c.function.name === "generate_image").slice(0, 2);
-          if (imageCalls.length && !req.signal.aborted) {
+          let messages = prompt;
+          const loaded = [...toolset.loaded];
+          // An approved call that failed before doing anything (e.g. a wrong argument) may be retried once
+          // without asking again; a successful run uses the approval up.
+          let retryGrant: string | null = null;
+
+          // Carrying on after an approval card: run (or skip) the paused call and hand the model its result.
+          if (resuming && paused) {
+            const args = JSON.parse(paused.args) as Record<string, unknown>;
+            const tool = toolset.available.find((t) => t.qualified === paused.qualified);
+            let result: string;
+            if (resuming.decision === "decline") result = declineToolCall(paused.id, onToolUpdate);
+            else if (!tool) result = declineToolCall(paused.id, onToolUpdate) + " (That tool is no longer available.)";
+            else {
+              const out = await runToolCall({ userId: user.id, conversationId, tool, args, approved: paused.id, onUpdate: onToolUpdate });
+              showMedia(out.media);
+              result = out.result;
+              if (out.call.status === "failed") retryGrant = paused.qualified;
+            }
+            messages = [
+              ...messages,
+              { role: "assistant", content: "", tool_calls: [{ function: { name: paused.qualified, arguments: args } }] },
+              { role: "tool", content: result, tool_name: paused.qualified },
+            ];
+          }
+
+          /** What the model may call this step. */
+          const offered = (): ToolDef[] | undefined => {
+            if (!useTools) return undefined;
+            const list = [
+              ...(offerImageTool && imagesMade < MAX_IMAGES_PER_REPLY && canMakeImage(user.id) ? [IMAGE_TOOL] : []),
+              ...(toolset.available.length ? [LOAD_TOOLS] : []),
+              ...loaded,
+            ];
+            return list.length ? list : undefined;
+          };
+
+          for (let step = 0; step < MAX_TOOL_STEPS; step++) {
+            const before = reply.length;
+            const calls = await streamTurn(messages, offered());
+            if (!calls.length || req.signal.aborted) break;
+            const stepText = reply.slice(before).trim();
+            const handled = calls.slice(0, 4);
             const results: ChatTurn[] = [];
-            for (const call of imageCalls) {
-              const args = call.function.arguments ?? {};
-              const description = String(args.prompt ?? "").trim().slice(0, MAX_IMAGE_PROMPT_CHARS);
+            let waiting = false;
+            for (const call of handled) {
+              const name = call.function.name;
+              const args = (call.function.arguments ?? {}) as Record<string, unknown>;
               let result: string;
-              if (!description) result = "No image made: the description was empty.";
-              else if (!canMakeImage(user.id)) result = "No image made: the person has reached today's image limit. Tell them kindly.";
-              else {
-                const made = await makeImage(description, isImageAspect(args.aspect) ? args.aspect : imageAspect);
-                result =
-                  made.status === "ready"
-                    ? `Done: the image is now shown to the person (prompt used: "${description}"). You can't see it, so don't describe details as if you could — briefly say what you made and offer to adjust it.`
-                    : "The image couldn't be made this time. Apologise briefly and suggest trying again.";
+              if (name === "generate_image") {
+                const description = String(args.prompt ?? "").trim().slice(0, MAX_IMAGE_PROMPT_CHARS);
+                if (!description) result = "No image made: the description was empty.";
+                else if (!canMakeImage(user.id) || imagesMade >= MAX_IMAGES_PER_REPLY) result = "No image made: the limit for now is reached. Tell the person kindly.";
+                else {
+                  imagesMade++;
+                  const made = await makeImage(description, isImageAspect(args.aspect) ? args.aspect : imageAspect);
+                  result =
+                    made.status === "ready"
+                      ? `Done: the image is now shown to the person (prompt used: "${description}"). You can't see it, so don't describe details as if you could — briefly say what you made and offer to adjust it.`
+                      : "The image couldn't be made this time. Apologise briefly and suggest trying again.";
+                }
+              } else if (name === "load_tools") {
+                const r = loadTools(conversationId, toolset.available, args.names);
+                for (const d of r.defs) if (!loaded.some((x) => x.function.name === d.function.name)) loaded.push(d);
+                result = r.result;
+              } else {
+                const tool = toolset.available.find((t) => t.qualified === name);
+                if (!tool) result = `There's no tool called ${name} available. Check the catalogue and use load_tools first.`;
+                else {
+                  // Called straight from the catalogue without loading: allow it, and keep it loaded.
+                  if (!loaded.some((d) => d.function.name === tool.qualified)) {
+                    loaded.push(...loadTools(conversationId, toolset.available, [tool.qualified]).defs);
+                  }
+                  const preApproved = retryGrant === tool.qualified;
+                  if (preApproved) retryGrant = null;
+                  const out = await runToolCall({ userId: user.id, conversationId, tool, args, preApproved, onUpdate: onToolUpdate });
+                  if (preApproved && out.call.status === "failed") retryGrant = null;
+                  toolCallIds.push(out.call.id);
+                  showMedia(out.media);
+                  result = out.result;
+                  if (out.paused) waiting = true;
+                }
               }
-              results.push({ role: "tool", content: result, tool_name: "generate_image" });
+              results.push({ role: "tool", content: result, tool_name: name });
             }
-            // Let the model finish its reply now it knows how the image went (no more tools this turn).
-            if (reply.trim()) {
-              reply += "\n\n";
-              send({ type: "delta", text: "\n\n" });
-            }
-            await streamTurn([...prompt, { role: "assistant", content: reply.trim(), tool_calls: imageCalls }, ...results]);
+            messages = [...messages, { role: "assistant", content: stepText, tool_calls: handled }, ...results];
+            breakBeforeText = true;
+            // Paused for approval: stop here; the browser carries on when the person decides.
+            if (waiting) break;
           }
         }
       } catch (err) {
@@ -374,9 +485,10 @@ export async function POST(req: NextRequest) {
       } finally {
         // Keep whatever arrived — the whole reply, the part before Stop or an error, and any images.
         thinkingMs = thinkStart === null ? null : (thinkEnd ?? Date.now()) - thinkStart;
-        if (reply.trim() || imageIds.length) {
+        if (reply.trim() || imageIds.length || toolCallIds.length) {
           messageId = addMessage(conversationId, "assistant", stripImageNotes(reply), thinking ? { text: thinking, ms: thinkingMs } : null);
           attachImagesToMessage(imageIds, messageId);
+          attachToolCallsToMessage(toolCallIds, messageId);
         }
       }
       send({ type: "done", messageId, thinkingMs });

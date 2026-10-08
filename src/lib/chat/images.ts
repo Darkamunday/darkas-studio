@@ -24,6 +24,7 @@ type ImageRow = {
   model: string;
   aspect: string;
   status: "pending" | "ready" | "failed";
+  kind: "image" | "video" | "audio";
   comfy_job_id: string | null;
   file_path: string | null;
   error: string | null;
@@ -34,6 +35,8 @@ type ImageRow = {
 export type ClientImage = {
   id: number;
   messageId: number | null;
+  /** Images also come from connected tools, which can make video and audio. */
+  kind: "image" | "video" | "audio";
   status: "pending" | "ready" | "failed";
   prompt: string;
   model: string;
@@ -45,6 +48,7 @@ export type ClientImage = {
 export const toClientImage = (r: ImageRow): ClientImage => ({
   id: r.id,
   messageId: r.message_id,
+  kind: r.kind ?? "image",
   status: r.status,
   prompt: r.prompt,
   model: r.model,
@@ -331,7 +335,7 @@ export function ownTracks(userId: number): { id: number; title: string | null }[
 /** Make a chat image the cover of one of this person's songs. A copy goes into covers/, so the two stay independent. */
 export async function setImageAsCover(userId: number, imageId: number, trackId: number): Promise<boolean> {
   const image = getImage(userId, imageId);
-  if (!image || image.status !== "ready" || !image.file_path) return false;
+  if (!image || image.status !== "ready" || !image.file_path || image.kind !== "image") return false;
   const track = db
     .prepare(
       `SELECT t.id, t.image_path FROM tracks t JOIN generations g ON g.id = t.generation_id
@@ -395,4 +399,49 @@ export async function comfyAccountMonthSpend(): Promise<number | null> {
   } catch {}
   monthSpend = { at: Date.now(), value };
   return value;
+}
+
+// ---- media from connected tools ---------------------------------------------------------------
+
+const KIND_BY_EXT: Record<string, ClientImage["kind"]> = {
+  ".png": "image", ".jpg": "image", ".jpeg": "image", ".webp": "image", ".gif": "image",
+  ".mp4": "video", ".webm": "video", ".mp3": "audio", ".wav": "audio", ".ogg": "audio", ".flac": "audio",
+};
+
+/**
+ * Save a file a connected tool produced (it's already been made — this just keeps a copy, since the
+ * tool's links expire) and count it against today's allowance. Null if it isn't a picture, video or sound.
+ */
+export async function saveToolMedia(input: {
+  userId: number;
+  conversationId: number;
+  url: string;
+  description: string;
+  source: string;
+}): Promise<ClientImage | null> {
+  const id = Number(
+    db
+      .prepare("INSERT INTO chat_images (user_id, conversation_id, prompt, model, aspect, status) VALUES (?, ?, ?, ?, 'square', 'pending')")
+      .run(input.userId, input.conversationId, input.description.slice(0, 2000), input.source).lastInsertRowid,
+  );
+  try {
+    const file = await downloadTo(input.url, CHAT_IMAGE_DIR, `tool-${id}`, ".bin");
+    const kind = KIND_BY_EXT[path.extname(file).toLowerCase()];
+    if (!kind) {
+      await removeMediaFile(file);
+      db.prepare("DELETE FROM chat_images WHERE id = ?").run(id);
+      return null;
+    }
+    db.prepare("UPDATE chat_images SET status = 'ready', kind = ?, file_path = ? WHERE id = ?").run(kind, file, id);
+    db.prepare(
+      `INSERT INTO image_usage (user_id, day, count) VALUES (?, ?, 1)
+       ON CONFLICT (user_id, day) DO UPDATE SET count = count + 1`,
+    ).run(input.userId, chatDay());
+  } catch (err) {
+    // Not shown as a broken card: a link that won't download is usually a duplicate or not a file.
+    console.error(`[images] couldn't save tool media ${id}`, err);
+    db.prepare("DELETE FROM chat_images WHERE id = ?").run(id);
+    return null;
+  }
+  return toClientImage(getRow(id)!);
 }

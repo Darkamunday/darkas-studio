@@ -33,11 +33,17 @@ export function ImageCard({ image: initial, onAgain }: { image: ClientImage; onA
   }, [image.id, image.status]);
 
   const ratio = image.aspect === "portrait" ? "aspect-[3/4]" : image.aspect === "landscape" ? "aspect-video" : "aspect-square";
-  const modelLabel = findImageModel(image.model)?.label ?? image.model;
+  // Media from connected tools is labelled "mcp:<server name>" rather than one of our image models.
+  const fromTool = !findImageModel(image.model);
+  const modelLabel = findImageModel(image.model)?.label ?? image.model.replace(/^mcp:/, "");
 
   return (
     <figure className="my-2 w-full max-w-md">
-      {image.status === "ready" && image.url ? (
+      {image.status === "ready" && image.url && image.kind === "video" ? (
+        <video src={image.url} controls playsInline className="w-full rounded-2xl border border-line bg-black" />
+      ) : image.status === "ready" && image.url && image.kind === "audio" ? (
+        <audio src={image.url} controls className="w-full" />
+      ) : image.status === "ready" && image.url ? (
         <a href={image.url} target="_blank" rel="noopener" className={`block overflow-hidden rounded-2xl border border-line bg-surface-2 ${ratio}`}>
           {/* eslint-disable-next-line @next/next/no-img-element -- private, auth-checked file */}
           <img src={image.url} alt={image.prompt} className="h-full w-full object-cover" loading="lazy" />
@@ -67,12 +73,12 @@ export function ImageCard({ image: initial, onAgain }: { image: ClientImage; onA
               {m.chat.imageDownload}
             </a>
           )}
-          {onAgain && (
+          {onAgain && !fromTool && (
             <button type="button" onClick={() => onAgain(image)} className="inline-flex h-7 items-center rounded-lg px-2 text-xs text-subtle transition hover:bg-surface-3 hover:text-fg">
               {m.chat.imageAgain}
             </button>
           )}
-          {image.status === "ready" && (
+          {image.status === "ready" && image.kind === "image" && (
             <button
               type="button"
               onClick={() => setPicking(true)}

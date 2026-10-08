@@ -12,6 +12,7 @@ export function AdminTabs() {
     { href: "/admin/people", label: m.admin.tabPeople },
     { href: "/admin/chat", label: m.admin.tabChat },
     { href: "/admin/songs", label: m.admin.tabSongs },
+    { href: "/admin/connections", label: m.admin.tabConnections },
   ];
 
   return (

@@ -273,6 +273,13 @@ export function ChatApp({
       image: prefs,
     });
   }
+  /** Approve or skip a tool waiting in the chat; the assistant carries on in a new reply. */
+  async function decide(toolCallId: number, decision: "approve" | "decline") {
+    setError(null);
+    setStick(true);
+    await chat.resume(toolCallId, decision, model, think, imagePrefs);
+  }
+
   const imageAgain = (img: ClientImage) =>
     void sendImage(img.prompt, { model: img.model, aspect: img.aspect as ImagePrefs["aspect"], improve: false });
 
@@ -566,6 +573,7 @@ export function ChatApp({
                 onMakeSong={chat.streaming ? undefined : makeSong}
                 makingSong={makingSong}
                 onImageAgain={imageAccess ? imageAgain : undefined}
+                onDecide={(id, d) => void decide(id, d)}
               />
             )}
           </div>
