@@ -145,15 +145,17 @@ export async function refreshTools(id: number): Promise<number> {
 
 /**
  * Comfy Cloud's tools: anything acting on the account itself (billing, saving or sharing workflows,
- * apps, feedback, the queue) starts off; look-ups and job checks start at admins; paid generation
- * starts at admins with approval. Other servers' tools start off, with approval, until set.
+ * apps, feedback, the queue) starts off; look-ups, job checks and reading saved workflows start at
+ * admins; paid generation (including running a saved workflow) starts at admins with approval. Other servers' tools start off, with approval, until set.
  */
 const COMFY_ADMIN_FREE = new Set([
   "search_models", "search_nodes", "get_node", "search_templates", "get_catalog_overview", "get_template", "cql",
   "get_template_schema", "apply_slots", "estimate_credits", "get_prompting_guide", "get_creative_technique",
   "get_job_status", "wait_for_job", "get_output", "get_batch_status", "get_batch_output", "wait_for_batch", "use_previous_output",
+  // Reading your saved workflows (saving, sharing and importing them stay off: they change the account).
+  "list_saved_workflows", "get_saved_workflow",
 ]);
-const COMFY_ADMIN_PAID = new Set(["partner_generate", "submit_workflow", "run_template", "submit_batch"]);
+const COMFY_ADMIN_PAID = new Set(["partner_generate", "submit_workflow", "run_template", "submit_batch", "run_saved_workflow"]);
 
 function defaultsFor(serverSlug: string, tool: string): { access: Access; approval: boolean } {
   if (serverSlug === "comfy") {
