@@ -25,7 +25,8 @@ export type RemixSourceInfo = {
 type FormProps = { moods: string[]; onCreated: (id: number) => void };
 
 /** Starting values for the advanced form (e.g. a chat reply turned into a song). */
-export type AdvancedDraft = { title: string; style: string; lyrics: string };
+/** A song drafted from a chat reply ("Make it a song"); `messageId` is the reply it came from. */
+export type AdvancedDraft = { title: string; style: string; lyrics: string; messageId?: number };
 
 const pick = <T,>(list: T[], not?: T) => {
   const options = list.length > 1 ? list.filter((x) => x !== not) : list;
@@ -211,6 +212,7 @@ function AdvancedForm({
 
   return (
     <form action={formAction} className={`${card} flex flex-col gap-6 p-6 sm:p-8`}>
+      {draft?.messageId && <input type="hidden" name="fromChat" value={draft.messageId} />}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted">{m.generate.advancedIntro}</p>
         <button type="button" onClick={surprise} className={`${btnGhost} whitespace-nowrap text-accent-fg`}>

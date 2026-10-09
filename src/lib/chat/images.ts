@@ -6,6 +6,7 @@ import { db } from "../db";
 import { ComfyMcpError, callTool, type ToolResult } from "../comfy-mcp";
 import { COVER_DIR, MEDIA_DIR, downloadTo, removeMediaFile, resolveMediaPath } from "../storage";
 import { chatDay } from "./access";
+import { canSeeSharedImage } from "./shared";
 import { DEFAULT_IMAGE_DAILY_CAP, IMAGE_ASPECTS, findImageModel, type ImageAspect } from "@/config/images";
 
 // Images in chat, made on Comfy Cloud through its MCP server. A row is written as soon as one is
@@ -29,6 +30,9 @@ type ImageRow = {
   file_path: string | null;
   error: string | null;
   created_at: number;
+  /** The project it was made in (for its Shared tab), and whether it's been taken off that tab. */
+  project_id: number | null;
+  project_hidden: number;
 };
 
 /** An image as the browser sees it. Shared by server and client code. */
@@ -63,6 +67,12 @@ const getRow = (id: number) => db.prepare("SELECT * FROM chat_images WHERE id = 
 export function getImage(userId: number, id: number): ImageRow | undefined {
   const row = getRow(id);
   return row && row.user_id === userId ? row : undefined;
+}
+
+/** One of this person's images, or one on a project's Shared tab they can see. */
+export function getViewableImage(userId: number, id: number): ImageRow | undefined {
+  const row = getRow(id);
+  return row && (row.user_id === userId || canSeeSharedImage(userId, row)) ? row : undefined;
 }
 
 export function listImages(userId: number, conversationId: number): ClientImage[] {
@@ -256,8 +266,11 @@ export function startImage(input: {
 }): { image: ClientImage; done: Promise<ClientImage> } {
   const id = Number(
     db
-      .prepare("INSERT INTO chat_images (user_id, conversation_id, prompt, model, aspect) VALUES (?, ?, ?, ?, ?)")
-      .run(input.userId, input.conversationId, input.prompt, input.modelId, input.aspect).lastInsertRowid,
+      .prepare(
+        `INSERT INTO chat_images (user_id, conversation_id, prompt, model, aspect, project_id)
+         VALUES (?, ?, ?, ?, ?, (SELECT project_id FROM conversations WHERE id = ?))`,
+      )
+      .run(input.userId, input.conversationId, input.prompt, input.modelId, input.aspect, input.conversationId).lastInsertRowid,
   );
   db.prepare(
     `INSERT INTO image_usage (user_id, day, count) VALUES (?, ?, 1)
@@ -421,8 +434,11 @@ export async function saveToolMedia(input: {
 }): Promise<ClientImage | null> {
   const id = Number(
     db
-      .prepare("INSERT INTO chat_images (user_id, conversation_id, prompt, model, aspect, status) VALUES (?, ?, ?, ?, 'square', 'pending')")
-      .run(input.userId, input.conversationId, input.description.slice(0, 2000), input.source).lastInsertRowid,
+      .prepare(
+        `INSERT INTO chat_images (user_id, conversation_id, prompt, model, aspect, status, project_id)
+         VALUES (?, ?, ?, ?, 'square', 'pending', (SELECT project_id FROM conversations WHERE id = ?))`,
+      )
+      .run(input.userId, input.conversationId, input.description.slice(0, 2000), input.source, input.conversationId).lastInsertRowid,
   );
   try {
     const file = await downloadTo(input.url, CHAT_IMAGE_DIR, `tool-${id}`, ".bin");

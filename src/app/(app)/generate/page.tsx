@@ -70,7 +70,7 @@ export default async function GeneratePage({ searchParams }: PageProps<"/generat
         defaultModel={DEFAULT_MODEL}
         initialPending={pending}
         remix={remix}
-        draft={draft}
+        draft={draft ? { ...draft, messageId: fromChat } : null}
       />
     </div>
   );

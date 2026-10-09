@@ -127,12 +127,14 @@ export function insertGeneration(g: {
   model: string;
   remixOf?: { trackId: number; title: string | null; username: string } | null;
   isPrivate: boolean;
+  /** The chat project it was made from ("Make it a song"), for the project's Shared tab. */
+  projectId?: number | null;
 }): number {
   const r = db
     .prepare(
       `INSERT INTO generations (user_id, suno_task_id, mode, prompt, lyrics, style, title, mood, instrumental, model,
-                                remix_of_track_id, remix_of_title, remix_of_username, is_private)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                                remix_of_track_id, remix_of_title, remix_of_username, is_private, project_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       g.userId,
@@ -149,6 +151,7 @@ export function insertGeneration(g: {
       g.remixOf?.title ?? null,
       g.remixOf?.username ?? null,
       g.isPrivate ? 1 : 0,
+      g.projectId ?? null,
     );
   return Number(r.lastInsertRowid);
 }

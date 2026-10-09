@@ -139,6 +139,21 @@ export function Sidebar({
                 </svg>
               </button>
             </div>
+            {(!project.mine || project.everyone || project.members.length > 0) && (
+              <Link
+                href={`/chat/projects/${project.id}`}
+                onClick={onNavigate}
+                className="mt-1 flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-muted transition hover:bg-surface-2 hover:text-fg"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4 flex-none" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                  <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                  <rect x="3" y="14" width="7" height="7" rx="1.5" />
+                  <rect x="14" y="14" width="7" height="7" rx="1.5" />
+                </svg>
+                {m.chat.openShared}
+              </Link>
+            )}
           </div>
         ) : (
           <div className="mb-3">

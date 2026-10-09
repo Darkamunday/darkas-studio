@@ -5,6 +5,7 @@ import { requireUser, type User } from "@/lib/auth";
 import { MODELS, SIMPLE_PROMPT_MAX, TITLE_MAX, limitsFor } from "@/lib/models";
 import { canRemix, getRemixSource, remixSourceUrl } from "@/lib/remix";
 import { DEFAULT_MODEL, generate, remix, SunoError, type GenerateInput, type RemixInput } from "@/lib/suno";
+import { projectOfReply } from "@/lib/chat/shared";
 import { MAX_IN_FLIGHT_PER_USER, MOODS, canViewTrack, inFlightCount, insertGeneration } from "@/lib/tracks";
 import { fmt } from "@/lib/i18n/format";
 import type { Messages } from "@/lib/i18n";
@@ -145,12 +146,14 @@ export async function generateAdvanced(_prev: GenerateState, formData: FormData)
 
   const { title, style, instrumental, model, mood, isPrivate } = parsed.data;
   const lyrics = instrumental ? null : parsed.data.lyrics;
+  // Made with "Make it a song" from a reply in a chat project: it goes on that project's Shared tab.
+  const projectId = projectOfReply(user.id, Number(formData.get("fromChat")));
   return submit(
     m,
     user,
     // In custom mode `prompt` is sung verbatim as the lyrics (works on every model).
     { customMode: true, instrumental, model, title, style, ...(lyrics ? { prompt: lyrics } : {}) },
-    { mode: "advanced", title, style, lyrics, mood, isPrivate },
+    { mode: "advanced", title, style, lyrics, mood, isPrivate, projectId },
   );
 }
 

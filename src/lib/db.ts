@@ -431,6 +431,20 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX project_members_user ON project_members(user_id);
   `,
+  // 21: a project's Shared tab. Images (and other media) and songs remember the project they were made
+  // in — fixed when made, so moving a chat later doesn't change what was shared. project_hidden is set
+  // when the person who made it, or the project's owner, takes it off the tab. Songs come from "Make it
+  // a song" on a reply in the project. Existing images in project chats are filled in from their chat.
+  `
+  ALTER TABLE chat_images ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL;
+  ALTER TABLE chat_images ADD COLUMN project_hidden INTEGER NOT NULL DEFAULT 0;
+  CREATE INDEX chat_images_project ON chat_images(project_id);
+  UPDATE chat_images SET project_id = (SELECT c.project_id FROM conversations c WHERE c.id = chat_images.conversation_id);
+
+  ALTER TABLE generations ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL;
+  ALTER TABLE generations ADD COLUMN project_hidden INTEGER NOT NULL DEFAULT 0;
+  CREATE INDEX generations_project ON generations(project_id);
+  `,
 ];
 
 function open(): DatabaseSync {
