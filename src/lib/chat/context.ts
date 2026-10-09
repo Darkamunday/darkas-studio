@@ -2,9 +2,10 @@ import type { ChatTurn } from "./ollama";
 import type { ChatModel } from "@/config/chat";
 import { MAX_REPLY_TOKENS } from "@/config/chat";
 
-// Rough token estimate (~4 characters each, plus a little per message). Good enough to keep
-// long chats under the model's window without shipping a tokenizer.
-const estimate = (t: ChatTurn) => Math.ceil(t.content.length / 4) + 4;
+// Rough token estimate (~4 characters each, plus a little per message, plus a guess per picture).
+// Good enough to keep long chats under the model's window without shipping a tokenizer.
+const TOKENS_PER_IMAGE = 1_000;
+const estimate = (t: ChatTurn) => Math.ceil(t.content.length / 4) + 4 + (t.images?.length ?? 0) * TOKENS_PER_IMAGE;
 
 /** Rough token count for some text or turns (for when the provider doesn't report one). */
 export const estimateTokens = (turns: ChatTurn[]) => turns.reduce((n, t) => n + estimate(t), 0);

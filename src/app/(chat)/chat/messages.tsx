@@ -10,6 +10,7 @@ import { ImageCard } from "./image-card";
 import { ToolCard } from "./tool-card";
 import type { ClientToolCall } from "@/lib/chat/tools";
 import type { ClientImage } from "@/lib/chat/images";
+import type { ClientUpload } from "@/lib/chat/uploads";
 
 export function MessageList({
   messages,
@@ -49,7 +50,7 @@ export function MessageList({
       {messages.map((msg, i) => (
         <li key={msg.key}>
           {msg.role === "user" ? (
-            <UserMessage content={msg.content} />
+            <UserMessage content={msg.content} pictures={msg.pictures} />
           ) : (
             <AssistantMessage
               content={msg.content}
@@ -80,16 +81,30 @@ export function MessageList({
   );
 }
 
-function UserMessage({ content }: { content: string }) {
+function UserMessage({ content, pictures = [] }: { content: string; pictures?: ClientUpload[] }) {
   const { m } = useI18n();
   return (
-    <div className="group flex items-start justify-end gap-1">
-      <div className="mt-1.5 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100 max-md:hidden">
-        <CopyAction getText={() => content} label={m.chat.copyMessage} />
-      </div>
-      <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-3xl rounded-br-lg bg-pink/12 px-4 py-2.5 text-fg">
-        <SlashCommand content={content} />
-      </div>
+    <div className="flex flex-col items-end gap-1.5">
+      {pictures.length > 0 && (
+        <div className="flex max-w-[85%] flex-wrap justify-end gap-1.5">
+          {pictures.map((p) => (
+            <a key={p.id} href={p.url} target="_blank" rel="noopener" className="block overflow-hidden rounded-2xl border border-line bg-surface-2">
+              {/* eslint-disable-next-line @next/next/no-img-element -- private, auth-checked file */}
+              <img src={p.url} alt={m.chat.attachedPicture} className="h-32 w-32 object-cover sm:h-40 sm:w-40" loading="lazy" />
+            </a>
+          ))}
+        </div>
+      )}
+      {content && (
+        <div className="group flex w-full items-start justify-end gap-1">
+          <div className="mt-1.5 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100 max-md:hidden">
+            <CopyAction getText={() => content} label={m.chat.copyMessage} />
+          </div>
+          <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-3xl rounded-br-lg bg-pink/12 px-4 py-2.5 text-fg">
+            <SlashCommand content={content} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

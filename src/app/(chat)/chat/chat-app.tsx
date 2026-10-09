@@ -6,7 +6,8 @@ import { useI18n } from "@/lib/i18n/client";
 import { fmt, plural } from "@/lib/i18n/format";
 import { Sidebar, type SidebarConversation } from "./sidebar";
 import { MessageList } from "./messages";
-import { Composer } from "./composer";
+import { Composer, type PendingAttachment } from "./composer";
+import { shrinkImage } from "./shrink-image";
 import { ModelPicker } from "./model-picker";
 import { InstructionsDialog } from "./instructions-dialog";
 import { FilesDialog, PaperclipIcon } from "./files-dialog";
@@ -18,8 +19,9 @@ import type { ClientImage } from "@/lib/chat/images";
 import type { ClientSkill } from "@/lib/chat/skills";
 import type { ClientProject } from "@/lib/chat/projects";
 import type { ClientFile } from "@/lib/chat/files";
-import { CHAT_MODEL_COOKIE, CHAT_THINK_COOKIE, MAX_REPLY_TOKENS, findChatModel } from "@/config/chat";
-import { useChatStream, type UiMessage } from "./use-chat-stream";
+import { CHAT_MODEL_COOKIE, CHAT_THINK_COOKIE, MAX_IMAGES_PER_MESSAGE, MAX_REPLY_TOKENS, findChatModel } from "@/config/chat";
+import type { ClientUpload } from "@/lib/chat/uploads";
+import { newKey, useChatStream, type UiMessage } from "./use-chat-stream";
 
 export function ChatApp({
   initialConversations,
@@ -92,6 +94,9 @@ export function ChatApp({
   const [pinnedSkills, setPinnedSkills] = useState(() => new Set(initialPinnedSkills));
   const [skillsOpen, setSkillsOpen] = useState(false);
   const [pinnedReplies, setPinnedReplies] = useState(() => new Set(initialPinnedReplies));
+  // Pictures for the next message, and documents on their way into Files.
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  const [dropping, setDropping] = useState(false);
   const pinnedRef = useRef(pinnedSkills);
   const [imagePrefs, setImagePrefs] = useState(initialImagePrefs);
   const [imageOpen, setImageOpen] = useState(false);
@@ -254,9 +259,15 @@ export function ChatApp({
 
   async function send() {
     const content = draft.trim();
-    if (!content) return;
+    const sending = attachments.filter((a) => a.kind === "picture" && a.status === "ready");
+    if (!content && !sending.length) return;
+    if (sending.length && !findChatModel(model)?.vision) {
+      return setError(fmt(m.chat.errors.no_vision, { model: findChatModel(model)?.label ?? model }));
+    }
+    const pictures: ClientUpload[] = sending.map((a) => ({ id: a.uploadId!, messageId: null, url: `/api/chat/uploads/${a.uploadId}` }));
     setError(null);
     setDraft("");
+    setAttachments((list) => list.filter((a) => !sending.includes(a)));
     setStick(true);
     await pendingSaves.current;
     const accepted = await chat.send(content, {
@@ -266,8 +277,79 @@ export function ChatApp({
       projectId,
       skillIds: [...pinnedRef.current],
       image: imagePrefs,
+      pictures,
     });
-    if (!accepted) setDraft((d) => d || content); // refused (e.g. daily limit): give their text back
+    if (accepted) sending.forEach((a) => a.preview && URL.revokeObjectURL(a.preview));
+    else {
+      // Refused (e.g. daily limit): give their text and pictures back.
+      setDraft((d) => d || content);
+      setAttachments((list) => [...sending, ...list]);
+    }
+  }
+
+  /** Files picked, pasted or dropped: pictures wait for the next message; documents go into Files for this chat. */
+  async function attach(picked: File[]) {
+    setError(null);
+    const pictures = picked.filter((f) => f.type.startsWith("image/"));
+    const documents = picked.filter((f) => !f.type.startsWith("image/"));
+    const room = MAX_IMAGES_PER_MESSAGE - attachments.filter((a) => a.kind === "picture").length;
+    if (pictures.length > room) setError(fmt(m.chat.errors.too_many_pictures, { n: MAX_IMAGES_PER_MESSAGE }));
+    if (pictures.length && !findChatModel(model)?.vision) {
+      setError(fmt(m.chat.errors.no_vision, { model: findChatModel(model)?.label ?? model }));
+    }
+    await Promise.all([
+      ...pictures.slice(0, Math.max(0, room)).map((f) => uploadPicture(f)),
+      ...documents.map((f) => uploadDocument(f)),
+    ]);
+  }
+
+  async function uploadPicture(file: File) {
+    const key = newKey();
+    const preview = URL.createObjectURL(file);
+    const update = (patch: Partial<PendingAttachment> | null) =>
+      setAttachments((list) => (patch ? list.map((a) => (a.key === key ? { ...a, ...patch } : a)) : list.filter((a) => a.key !== key)));
+    setAttachments((list) => [...list, { key, kind: "picture", name: file.name || m.chat.attachedPicture, preview, status: "uploading" }]);
+    let reason = "upload_type";
+    try {
+      const form = new FormData();
+      form.append("file", await shrinkImage(file), "picture.jpg");
+      const res = await fetch("/api/chat/uploads", { method: "POST", body: form });
+      const body = (await res.json().catch(() => null)) as { upload?: ClientUpload; error?: string } | null;
+      if (res.ok && body?.upload) return update({ status: "ready", uploadId: body.upload.id });
+      reason = body?.error ?? (res.status === 413 ? "file_too_big" : "generic");
+    } catch {
+      // The browser couldn't read the picture (e.g. a format it doesn't support).
+    }
+    URL.revokeObjectURL(preview);
+    update(null);
+    setError(`${file.name}: ${(m.chat.errors as Record<string, string>)[reason] ?? m.chat.errors.generic}`);
+  }
+
+  /** A document from the paperclip: added to Files and attached to this chat, as the Files window does. */
+  async function uploadDocument(file: File) {
+    const key = newKey();
+    setAttachments((list) => [...list, { key, kind: "document", name: file.name, status: "uploading" }]);
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch("/api/chat/files", { method: "POST", body: form }).catch(() => null);
+    const body = (await res?.json().catch(() => null)) as { file?: ClientFile; error?: string } | null;
+    setAttachments((list) => list.filter((a) => a.key !== key));
+    if (res?.ok && body?.file) {
+      const added = body.file;
+      setFiles((list) => [...list, added].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" })));
+      if (!attachedRef.current.has(added.id)) toggleAttach(added.id);
+    } else {
+      const reason = body?.error ?? (res?.status === 413 ? "file_too_big" : "generic");
+      setError(`${file.name}: ${(m.chat.errors as Record<string, string>)[reason] ?? m.chat.errors.generic}`);
+    }
+  }
+
+  /** Take a picture off before sending (and delete the upload). */
+  function removeAttachment(key: string) {
+    const found = attachments.find((a) => a.key === key);
+    setAttachments((list) => list.filter((a) => a.key !== key));
+    if (found?.preview) URL.revokeObjectURL(found.preview);
+    if (found?.uploadId) void fetch(`/api/chat/uploads/${found.uploadId}`, { method: "DELETE" }).catch(() => null);
   }
 
   /** "Make an image" (and "Again" on an image): sent as "/image <description>" with its settings. */
@@ -520,7 +602,28 @@ export function ChatApp({
         <InstructionsDialog initial={instructions} onClose={closeInstructions} onSaved={setInstructions} />
       )}
 
-      <section className="flex min-w-0 flex-1 flex-col">
+      <section
+        className="relative flex min-w-0 flex-1 flex-col"
+        onDragOver={(e) => {
+          if (!e.dataTransfer.types.includes("Files")) return;
+          e.preventDefault();
+          setDropping(true);
+        }}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropping(false);
+        }}
+        onDrop={(e) => {
+          if (!e.dataTransfer.files.length) return;
+          e.preventDefault();
+          setDropping(false);
+          void attach(Array.from(e.dataTransfer.files));
+        }}
+      >
+        {dropping && (
+          <div className="pointer-events-none absolute inset-3 z-30 grid place-items-center rounded-3xl border-2 border-dashed border-pink bg-bg/80 backdrop-blur-sm">
+            <p className="text-sm font-medium text-accent-fg">{m.chat.dropToAttach}</p>
+          </div>
+        )}
         <div className="flex items-center gap-2 border-b border-line/70 px-4 py-2.5">
           <button
             type="button"
@@ -702,6 +805,9 @@ export function ChatApp({
               : skills
           }
           onImage={imageAccess ? () => setImageOpen(true) : undefined}
+          onAttach={(list) => void attach(list)}
+          attachments={attachments}
+          onRemoveAttachment={removeAttachment}
         />
       </section>
     </div>

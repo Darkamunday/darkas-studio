@@ -18,6 +18,7 @@ import { filesForChat, setAttachedFiles } from "@/lib/chat/files";
 import { getProject } from "@/lib/chat/projects";
 import { setPinnedSkills, skillsForMessage, slashSlug } from "@/lib/chat/skills";
 import { getMasterPrompt } from "@/lib/chat/master-prompt";
+import { claimUploads, imagesForPrompt, unsentUploads, uploadCounts } from "@/lib/chat/uploads";
 import {
   LOAD_TOOLS,
   attachToolCallsToMessage,
@@ -59,6 +60,7 @@ import {
   CHAT_MODELS,
   DEFAULT_MODEL,
   MAX_FILES_PER_USER,
+  MAX_IMAGES_PER_MESSAGE,
   MAX_MESSAGE_CHARS,
   MAX_REPLY_TOKENS,
   allowedModel,
@@ -77,9 +79,12 @@ const ImagePrefs = z
   .optional();
 
 const Body = z.union([
-  z.object({
+  z
+    .object({
     conversationId: z.number().int().positive().optional(),
-    content: z.string().trim().min(1).max(MAX_MESSAGE_CHARS),
+    content: z.string().trim().max(MAX_MESSAGE_CHARS),
+    /** Pictures uploaded for this message (for models that can see them). */
+    imageIds: z.array(z.number().int().positive()).max(MAX_IMAGES_PER_MESSAGE).optional(),
     model: z.string().optional(),
     think: z.boolean().optional(),
     /** Files picked before a new chat existed; attached when it's created. */
@@ -89,7 +94,9 @@ const Body = z.union([
     /** Skills pinned before a new chat existed; pinned when it's created. */
     skillIds: z.array(z.number().int().positive()).max(50).optional(),
     image: ImagePrefs,
-  }),
+  })
+    // Text, pictures or both.
+    .refine((b) => b.content.length > 0 || !!b.imageIds?.length),
   z.object({
     conversationId: z.number().int().positive(),
     regenerate: z.literal(true),
@@ -248,6 +255,13 @@ export async function POST(req: NextRequest) {
   }
   const offerImageTool = useTools && canMakeImage(user.id);
 
+  // Pictures attached to the message: only for models that can see them, and only ones just uploaded.
+  const attachedImageIds = "content" in body ? (body.imageIds ?? []) : [];
+  if (attachedImageIds.length) {
+    if (!model.vision) return Response.json({ error: "no_vision", model: model.label }, { status: 400 });
+    if (!unsentUploads(user.id, attachedImageIds)) return Response.json({ error: "bad_request" }, { status: 400 });
+  }
+
   // Save the user's side first, so it's kept even if the model never answers.
   let userMessageId: number | null = null;
   const conversationId = transaction(() => {
@@ -256,7 +270,10 @@ export async function POST(req: NextRequest) {
       setConversationModel(user.id, id, requestedModel.id);
     }
     if ("regenerate" in body) dropLastAssistant(id);
-    else if ("content" in body) userMessageId = addMessage(id, "user", body.content);
+    else if ("content" in body) {
+      userMessageId = addMessage(id, "user", body.content);
+      if (attachedImageIds.length) claimUploads(user.id, attachedImageIds, id, userMessageId);
+    }
     if (!resuming) recordSend(user.id);
     return id;
   });
@@ -265,8 +282,21 @@ export async function POST(req: NextRequest) {
   if (newSkillIds.length) setPinnedSkills(user.id, { conversationId }, newSkillIds);
 
   // Image-only replies have no text to send; the images themselves are listed in the system prompt.
+  // Pictures the person attached go with their messages: the latest few to models that can see them,
+  // otherwise a note that they're there.
+  const sentImages = model.vision ? await imagesForPrompt(user.id, conversationId) : new Map<number, string[]>();
+  const pictureCounts = uploadCounts(user.id, conversationId);
   const history = listMessages(user.id, conversationId)
-    .map<ChatTurn>((m) => ({ role: m.role, content: m.role === "assistant" ? stripImageNotes(m.content) : m.content }))
+    .map<ChatTurn>((m) => {
+      if (m.role === "assistant") return { role: m.role, content: stripImageNotes(m.content) };
+      const images = sentImages.get(m.id);
+      if (images) return { role: m.role, content: m.content, images };
+      const count = pictureCounts.get(m.id);
+      const note = count
+        ? `[The person attached ${count === 1 ? "a picture" : `${count} pictures`} here, which ${model.vision ? "is no longer shown to you" : "this model can't see"}.]`
+        : "";
+      return { role: m.role, content: [m.content, note].filter(Boolean).join("\n\n") };
+    })
     .filter((m) => m.role !== "assistant" || m.content);
   if (!resuming && history.at(-1)?.role !== "user") return Response.json({ error: "nothing_to_answer" }, { status: 400 });
 
@@ -277,7 +307,7 @@ export async function POST(req: NextRequest) {
     .map((i) => i.prompt.slice(0, 300));
   const prompt = buildPrompt(madeImages.length ? `${system}${imagesNote(madeImages)}` : system, history, model);
   const needsTitle = !conversation.title && !resuming;
-  const firstUserMessage = history.find((m) => m.role === "user")!.content;
+  const firstUserMessage = history.find((m) => m.role === "user")!.content || "(a picture)";
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({

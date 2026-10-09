@@ -12,8 +12,11 @@ export type ChatRole = "user" | "assistant" | "system";
 /** A tool the model asked to use, with the arguments it chose. */
 export type ToolCall = { function: { name: string; arguments: Record<string, unknown> } };
 
-/** A turn sent to the model. "tool" turns carry a tool's result back; assistant turns can carry the calls they made. */
-export type ChatTurn = { role: ChatRole | "tool"; content: string; tool_calls?: ToolCall[]; tool_name?: string };
+/**
+ * A turn sent to the model. "tool" turns carry a tool's result back; assistant turns can carry the calls
+ * they made; user turns can carry pictures (base64) for models that can see them.
+ */
+export type ChatTurn = { role: ChatRole | "tool"; content: string; tool_calls?: ToolCall[]; tool_name?: string; images?: string[] };
 
 /** A tool offered to the model (Ollama's function-calling format). */
 export type ToolDef = { type: "function"; function: { name: string; description: string; parameters: object } };

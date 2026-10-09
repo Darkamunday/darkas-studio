@@ -5,6 +5,22 @@ import { fmt } from "@/lib/i18n/format";
 import { useI18n } from "@/lib/i18n/client";
 import { MAX_MESSAGE_CHARS } from "@/config/chat";
 
+/** Something attached in the box: a picture for the next message, or a document being added to Files. */
+export type PendingAttachment = {
+  key: string;
+  kind: "picture" | "document";
+  name: string;
+  /** A local preview of a picture. */
+  preview?: string;
+  status: "uploading" | "ready";
+  /** The uploaded picture's id, once it's up. */
+  uploadId?: number;
+};
+
+/** What the paperclip offers: reference documents and pictures. */
+export const ATTACH_ACCEPT =
+  ".txt,.md,.markdown,.pdf,.docx,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*";
+
 export function Composer({
   value,
   onChange,
@@ -15,6 +31,9 @@ export function Composer({
   inputRef,
   skills = [],
   onImage,
+  onAttach,
+  attachments = [],
+  onRemoveAttachment,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -29,11 +48,19 @@ export function Composer({
   skills?: { slug: string; name: string; emoji: string; description: string }[];
   /** Open "Make an image" (shown when the person can make images). */
   onImage?: () => void;
+  /** Files or pictures picked, pasted or dropped. */
+  onAttach?: (files: File[]) => void;
+  /** Pictures waiting to go with the next message, and documents still uploading. */
+  attachments?: PendingAttachment[];
+  onRemoveAttachment?: (key: string) => void;
 }) {
   const { m } = useI18n();
   const ownRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const ref = inputRef ?? ownRef;
-  const canSend = value.trim().length > 0 && !streaming;
+  const busy = attachments.some((a) => a.status === "uploading");
+  const hasPicture = attachments.some((a) => a.kind === "picture" && a.status === "ready");
+  const canSend = (value.trim().length > 0 || hasPicture) && !busy && !streaming;
 
   // ---- "/" skill picker: open while the message is just "/" plus part of a command ----
   const [picked, setPicked] = useState(0);
@@ -104,80 +131,154 @@ export function Composer({
           </div>
         </div>
       )}
-      <div className="flex items-end gap-2 rounded-3xl border border-line bg-surface p-2 shadow-card transition focus-within:border-pink focus-within:ring-4 focus-within:ring-pink/15">
-        {onImage && (
-          <button
-            type="button"
-            onClick={onImage}
-            disabled={streaming}
-            aria-label={m.chat.imageTitle}
-            title={m.chat.imageTitle}
-            className="grid h-10 w-10 flex-none place-items-center rounded-2xl text-lg transition hover:bg-surface-2 disabled:opacity-50"
-          >
-            <span aria-hidden>🎨</span>
-          </button>
+      <div className="rounded-3xl border border-line bg-surface p-2 shadow-card transition focus-within:border-pink focus-within:ring-4 focus-within:ring-pink/15">
+        {attachments.length > 0 && (
+          <ul className="flex flex-wrap gap-2 px-1 pb-2">
+            {attachments.map((a) => (
+              <li key={a.key} className="relative">
+                {a.kind === "picture" && a.preview ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- a local preview (blob: URL)
+                  <img
+                    src={a.preview}
+                    alt={a.name}
+                    className={`h-16 w-16 rounded-xl border border-line object-cover ${a.status === "uploading" ? "opacity-50" : ""}`}
+                  />
+                ) : (
+                  <span className="flex h-16 max-w-48 items-center gap-2 rounded-xl border border-line bg-surface-2 px-3 text-xs text-muted">
+                    <span className="truncate">{a.name}</span>
+                  </span>
+                )}
+                {a.status === "uploading" && (
+                  <span role="status" className="absolute inset-0 grid place-items-center text-[10px] font-medium text-fg">
+                    {m.chat.uploadingShort}
+                  </span>
+                )}
+                {a.status !== "uploading" && onRemoveAttachment && (
+                  <button
+                    type="button"
+                    onClick={() => onRemoveAttachment(a.key)}
+                    aria-label={`${m.chat.removeAttachment}: ${a.name}`}
+                    title={m.chat.removeAttachment}
+                    className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full border border-line bg-surface text-xs text-muted shadow-card transition hover:text-fg"
+                  >
+                    ×
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
         )}
-        <textarea
-          ref={ref}
-          value={value}
-          rows={1}
-          maxLength={MAX_MESSAGE_CHARS}
-          placeholder={m.chat.placeholder}
-          aria-label={m.chat.placeholder}
-          enterKeyHint="enter"
-          onChange={(e) => {
-            onChange(e.target.value);
-            setPicked(0);
-          }}
-          onKeyDown={(e) => {
-            if (pickerOpen && matches.length) {
-              if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        <div className="flex items-end gap-2">
+          {onAttach && (
+            <>
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={streaming}
+                aria-label={m.chat.attach}
+                title={m.chat.attach}
+                className="grid h-10 w-10 flex-none place-items-center rounded-2xl text-muted transition hover:bg-surface-2 hover:text-fg disabled:opacity-50"
+              >
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                </svg>
+              </button>
+              <input
+                ref={fileRef}
+                type="file"
+                multiple
+                accept={ATTACH_ACCEPT}
+                className="hidden"
+                aria-label={m.chat.attach}
+                onChange={(e) => {
+                  if (e.target.files?.length) onAttach(Array.from(e.target.files));
+                  e.target.value = "";
+                }}
+              />
+            </>
+          )}
+          {onImage && (
+            <button
+              type="button"
+              onClick={onImage}
+              disabled={streaming}
+              aria-label={m.chat.imageTitle}
+              title={m.chat.imageTitle}
+              className="grid h-10 w-10 flex-none place-items-center rounded-2xl text-lg transition hover:bg-surface-2 disabled:opacity-50"
+            >
+              <span aria-hidden>🎨</span>
+            </button>
+          )}
+          <textarea
+            ref={ref}
+            value={value}
+            rows={1}
+            maxLength={MAX_MESSAGE_CHARS}
+            placeholder={m.chat.placeholder}
+            aria-label={m.chat.placeholder}
+            enterKeyHint="enter"
+            onChange={(e) => {
+              onChange(e.target.value);
+              setPicked(0);
+            }}
+            onPaste={(e) => {
+              // Pasted pictures (screenshots, copied images) attach; pasted text goes in as usual.
+              const files = Array.from(e.clipboardData.files);
+              if (onAttach && files.length) {
                 e.preventDefault();
-                setPicked((i) => (i + (e.key === "ArrowDown" ? 1 : matches.length - 1)) % matches.length);
+                onAttach(files);
+              }
+            }}
+            onKeyDown={(e) => {
+              if (pickerOpen && matches.length) {
+                if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                  e.preventDefault();
+                  setPicked((i) => (i + (e.key === "ArrowDown" ? 1 : matches.length - 1)) % matches.length);
+                  return;
+                }
+                if ((e.key === "Enter" && !e.shiftKey) || e.key === "Tab") {
+                  e.preventDefault();
+                  choose(matches[Math.min(picked, matches.length - 1)].slug);
+                  return;
+                }
+              }
+              if (pickerOpen && e.key === "Escape") {
+                e.preventDefault();
+                setDismissed(value);
                 return;
               }
-              if ((e.key === "Enter" && !e.shiftKey) || e.key === "Tab") {
+              // Phone keyboards have no Shift+Enter, so there Enter makes a new line and the button sends.
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && !isTouch()) {
                 e.preventDefault();
-                choose(matches[Math.min(picked, matches.length - 1)].slug);
-                return;
+                if (canSend) onSend();
               }
-            }
-            if (pickerOpen && e.key === "Escape") {
-              e.preventDefault();
-              setDismissed(value);
-              return;
-            }
-            // Phone keyboards have no Shift+Enter, so there Enter makes a new line and the button sends.
-            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && !isTouch()) {
-              e.preventDefault();
-              if (canSend) onSend();
-            }
-          }}
-          className="max-h-60 min-h-10 flex-1 resize-none bg-transparent px-3 py-2 text-base text-fg outline-none placeholder:text-subtle"
-        />
-        {streaming ? (
-          <button
-            type="button"
-            onClick={onStop}
-            aria-label={m.chat.stop}
-            title={m.chat.stop}
-            className="grid h-10 w-10 flex-none place-items-center rounded-2xl border border-line bg-surface-2 text-fg transition hover:border-line-strong active:scale-95"
-          >
-            <span className="h-3.5 w-3.5 rounded-[4px] bg-current" />
-          </button>
-        ) : (
-          <button
-            type="submit"
-            disabled={!canSend}
-            aria-label={m.chat.send}
-            title={m.chat.send}
-            className="grid h-10 w-10 flex-none place-items-center rounded-2xl bg-brand text-white shadow-glow transition hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
-          >
-            <svg viewBox="0 0 24 24" className="h-4.5 w-4.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 19V5M5 12l7-7 7 7" />
-            </svg>
-          </button>
-        )}
+            }}
+            className="max-h-60 min-h-10 flex-1 resize-none bg-transparent px-3 py-2 text-base text-fg outline-none placeholder:text-subtle"
+          />
+          {streaming ? (
+            <button
+              type="button"
+              onClick={onStop}
+              aria-label={m.chat.stop}
+              title={m.chat.stop}
+              className="grid h-10 w-10 flex-none place-items-center rounded-2xl border border-line bg-surface-2 text-fg transition hover:border-line-strong active:scale-95"
+            >
+              <span className="h-3.5 w-3.5 rounded-[4px] bg-current" />
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={!canSend}
+              aria-label={m.chat.send}
+              title={m.chat.send}
+              className="grid h-10 w-10 flex-none place-items-center rounded-2xl bg-brand text-white shadow-glow transition hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+            >
+              <svg viewBox="0 0 24 24" className="h-4.5 w-4.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 19V5M5 12l7-7 7 7" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
       {note ? (
         <p className="mt-2 text-center text-xs font-medium text-accent-fg">{note}</p>

@@ -459,6 +459,23 @@ const MIGRATIONS: string[] = [
   CREATE INDEX project_pins_project ON project_pins(project_id);
   CREATE UNIQUE INDEX project_pins_message ON project_pins(project_id, message_id);
   `,
+  // 23: pictures people attach to their own chat messages, for models that can see images. The file
+  // lives in MEDIA_DIR/chat-uploads; a row is written on upload (conversation and message NULL) and
+  // claimed by the message it's sent with. Unsent ones are cleared out after a day.
+  `
+  CREATE TABLE chat_uploads (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    conversation_id INTEGER REFERENCES conversations(id) ON DELETE CASCADE,
+    message_id      INTEGER REFERENCES messages(id) ON DELETE CASCADE,
+    file_path       TEXT NOT NULL,
+    bytes           INTEGER NOT NULL,
+    created_at      INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+  CREATE INDEX chat_uploads_message ON chat_uploads(message_id);
+  CREATE INDEX chat_uploads_conversation ON chat_uploads(conversation_id);
+  CREATE INDEX chat_uploads_user ON chat_uploads(user_id, created_at);
+  `,
 ];
 
 function open(): DatabaseSync {

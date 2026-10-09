@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatEvent } from "@/lib/chat/events";
 import type { ClientImage } from "@/lib/chat/images";
 import type { ClientToolCall } from "@/lib/chat/tools";
+import type { ClientUpload } from "@/lib/chat/uploads";
 
 export type UiMessage = {
   /** Stable React key; real ids arrive from the server as the stream goes. */
@@ -18,6 +19,8 @@ export type UiMessage = {
   images?: ClientImage[];
   /** Connected tools this reply used (or wants approval for). */
   tools?: ClientToolCall[];
+  /** Pictures the person attached (user messages only). */
+  pictures?: ClientUpload[];
 };
 
 /** Image settings sent along with a message: the model and shape picked, and whether to improve the description. */
@@ -26,6 +29,7 @@ export type ImagePrefs = { model: string; aspect: "square" | "portrait" | "lands
 type Request = {
   conversationId?: number;
   content?: string;
+  imageIds?: number[];
   regenerate?: true;
   model?: string;
   think?: boolean;
@@ -44,6 +48,8 @@ export type SendOptions = {
   projectId?: number | null;
   skillIds?: number[];
   image?: ImagePrefs;
+  /** Pictures attached to this message. */
+  pictures?: ClientUpload[];
 };
 
 type Handlers = {
@@ -181,12 +187,12 @@ export function useChatStream(initial: UiMessage[], conversationId: number | nul
   }, []);
 
   const send = useCallback(
-    (content: string, { model, think, fileIds, projectId, skillIds, image }: SendOptions = {}) => {
+    (content: string, { model, think, fileIds, projectId, skillIds, image, pictures }: SendOptions = {}) => {
       const userKey = newKey();
       const before = messagesRef.current;
       setMessages((list) => [
         ...list,
-        { key: userKey, id: null, role: "user", content },
+        { key: userKey, id: null, role: "user", content, pictures },
         { key: newKey(), id: null, role: "assistant", content: "" },
       ]);
       // What was picked before the chat exists rides along with its first message.
@@ -195,6 +201,7 @@ export function useChatStream(initial: UiMessage[], conversationId: number | nul
         {
           conversationId: idRef.current ?? undefined,
           content,
+          imageIds: pictures?.length ? pictures.map((p) => p.id) : undefined,
           model,
           think,
           fileIds: first && fileIds?.length ? fileIds : undefined,

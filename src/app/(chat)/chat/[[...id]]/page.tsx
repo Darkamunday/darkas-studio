@@ -10,6 +10,7 @@ import { getProject, listProjects, toClientProject } from "@/lib/chat/projects";
 import { conversationSkillIds, listSkills, toClientSkill } from "@/lib/chat/skills";
 import { hasImageAccess, listImages } from "@/lib/chat/images";
 import { pinnedReplyIds } from "@/lib/chat/shared";
+import { listUploads } from "@/lib/chat/uploads";
 import { listToolCalls } from "@/lib/chat/tools";
 import { DEFAULT_IMAGE_MODEL, IMAGE_PREFS_COOKIE, allowedImageModel, isImageAspect } from "@/config/images";
 import { getI18n } from "@/lib/i18n/server";
@@ -74,6 +75,7 @@ export default async function ChatPage({ params, searchParams }: PageProps<"/cha
   }));
   const images = id ? listImages(user.id, id) : [];
   const toolCalls = id ? listToolCalls(user.id, id) : [];
+  const uploads = id ? listUploads(user.id, id) : [];
   const messages = id
     ? listMessages(user.id, id)
         .filter((msg) => msg.role !== "system")
@@ -86,6 +88,7 @@ export default async function ChatPage({ params, searchParams }: PageProps<"/cha
           thinkingMs: msg.thinking_ms,
           images: images.filter((img) => img.messageId === msg.id),
           tools: toolCalls.filter((t) => t.messageId === msg.id),
+          pictures: uploads.filter((u) => u.messageId === msg.id),
         }))
     : [];
 

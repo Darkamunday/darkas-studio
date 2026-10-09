@@ -25,16 +25,18 @@ export type ChatModel = {
    * pretend instead (they still get the Image button and /image).
    */
   tools?: boolean;
+  /** Can look at pictures attached to messages. */
+  vision?: boolean;
 };
 
 // Prices from Ollama Cloud's price list (Oct 2026), standard rate — off-peak discounts aren't applied,
 // so spend figures err on the high side.
 export const CHAT_MODELS: ChatModel[] = [
-  { id: "deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash", contextTokens: 64_000, price: { input: 0.3, output: 1.2 }, thinking: true, tools: true },
-  { id: "gemma4:31b", label: "Gemma 4 31B", contextTokens: 32_000, price: { input: 0.14, output: 0.4 }, thinking: true, tools: true },
-  { id: "mistral-large-3:675b", label: "Mistral Large 3", contextTokens: 32_000, price: { input: 0.5, output: 1.5 }, tools: true },
+  { id: "deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash", contextTokens: 64_000, price: { input: 0.3, output: 1.2 }, thinking: true, tools: true, vision: true },
+  { id: "gemma4:31b", label: "Gemma 4 31B", contextTokens: 32_000, price: { input: 0.14, output: 0.4 }, thinking: true, tools: true, vision: true },
+  { id: "mistral-large-3:675b", label: "Mistral Large 3", contextTokens: 32_000, price: { input: 0.5, output: 1.5 }, tools: true, vision: true },
   { id: "glm-5.3", label: "GLM 5.3", contextTokens: 64_000, price: { input: 1.4, output: 4.4 }, adminOnly: true, thinking: true, tools: true },
-  { id: "kimi-k3", label: "Kimi K3", contextTokens: 64_000, price: { input: 3, output: 15 }, adminOnly: true, thinking: true },
+  { id: "kimi-k3", label: "Kimi K3", contextTokens: 64_000, price: { input: 3, output: 15 }, adminOnly: true, thinking: true, vision: true },
 ];
 
 /** Used for new chats; must be one of the ids above, and not an admin-only one. */
@@ -65,6 +67,11 @@ export const MAX_INSTRUCTIONS_CHARS = 1_500;
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
 export const MAX_FILE_CHARS = 160_000;
 export const MAX_FILES_PER_USER = 50;
+/** Pictures attached to one message, and the most one may weigh once shrunk in the browser. */
+export const MAX_IMAGES_PER_MESSAGE = 4;
+export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+/** Longest side pictures are shrunk to before upload (plenty for the models to read detail). */
+export const UPLOAD_MAX_SIDE = 1600;
 
 /** Projects: how many one person can have, and the longest name and instructions. */
 export const MAX_PROJECTS_PER_USER = 30;
