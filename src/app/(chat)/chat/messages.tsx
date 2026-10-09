@@ -19,6 +19,8 @@ export function MessageList({
   makingSong,
   onImageAgain,
   onDecide,
+  pinnedReplies,
+  onTogglePinReply,
 }: {
   messages: UiMessage[];
   streaming: boolean;
@@ -32,6 +34,10 @@ export function MessageList({
   makingSong?: number | null;
   /** Re-answer the last message; absent when there's no saved chat to regenerate in. */
   onRegenerate?: () => void;
+  /** Replies pinned to the project's Shared tab. */
+  pinnedReplies?: Set<number>;
+  /** Pin a reply to the Shared tab or unpin it; absent outside shared projects. */
+  onTogglePinReply?: (messageId: number) => void;
 }) {
   const { m } = useI18n();
   const last = messages.length - 1;
@@ -57,6 +63,8 @@ export function MessageList({
               onRegenerate={!streaming && i === last ? onRegenerate : undefined}
               onMakeSong={msg.id !== null && onMakeSong ? () => onMakeSong(msg.id!) : undefined}
               makingSong={makingSong != null && makingSong === msg.id}
+              pinned={msg.id !== null && !!pinnedReplies?.has(msg.id)}
+              onTogglePin={msg.id !== null && onTogglePinReply ? () => onTogglePinReply(msg.id!) : undefined}
             />
           )}
         </li>
@@ -110,6 +118,8 @@ function AssistantMessage({
   onRegenerate,
   onMakeSong,
   makingSong,
+  pinned,
+  onTogglePin,
 }: {
   content: string;
   images?: ClientImage[];
@@ -122,6 +132,9 @@ function AssistantMessage({
   onRegenerate?: () => void;
   onMakeSong?: () => void;
   makingSong?: boolean;
+  /** Pinned to the project's Shared tab. */
+  pinned?: boolean;
+  onTogglePin?: () => void;
 }) {
   const { m } = useI18n();
   // Hide any "[Image shown…]" note a model imitates (the server strips it before saving, too).
@@ -172,6 +185,22 @@ function AssistantMessage({
                   <circle cx="18" cy="16" r="3" />
                 </svg>
                 {makingSong ? m.chat.makingSong : m.chat.makeSong}
+              </button>
+            )}
+            {onTogglePin && (
+              <button
+                type="button"
+                onClick={onTogglePin}
+                aria-pressed={pinned}
+                title={pinned ? m.chat.unpinReplyHint : m.chat.pinReplyHint}
+                className={`ml-1 inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-xs transition ${
+                  pinned ? "border-pink/50 bg-pink/12 text-accent-fg" : "border-line text-muted hover:border-pink/50 hover:text-accent-fg"
+                }`}
+              >
+                <svg aria-hidden viewBox="0 0 24 24" className="h-3.5 w-3.5" fill={pinned ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 17v5M9 10.76V6h6v4.76a2 2 0 0 0 1.11 1.79l1.78.9A2 2 0 0 1 19 15.24V17H5v-1.76a2 2 0 0 1 1.11-1.79l1.78-.9A2 2 0 0 0 9 10.76ZM8 2h8" />
+                </svg>
+                {pinned ? m.chat.pinnedReply : m.chat.pinReply}
               </button>
             )}
           </div>

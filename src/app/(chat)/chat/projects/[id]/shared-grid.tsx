@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useI18n } from "@/lib/i18n/client";
 import { fmt } from "@/lib/i18n/format";
 import type { SharedItem } from "@/lib/chat/shared";
+import { Markdown } from "../../markdown";
+import { CopyAction } from "../../copy-action";
 
 /** The Shared tab's items: pictures, video and sound from chats, and songs, newest first. */
 export function SharedGrid({ projectId, initialItems }: { projectId: number; initialItems: SharedItem[] }) {
@@ -50,7 +52,11 @@ export function SharedGrid({ projectId, initialItems }: { projectId: number; ini
       )}
       <ul className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {items.map((item) =>
-          item.kind === "media" ? (
+          item.kind === "reply" ? (
+            <li key={`reply-${item.id}`} className="sm:col-span-2 lg:col-span-3">
+              <PinnedReply item={item} byline={byline(item)} />
+            </li>
+          ) : item.kind === "media" ? (
             <li key={`media-${item.id}`} className="flex flex-col gap-2 rounded-3xl border border-line bg-surface p-3 shadow-card">
               {item.media === "video" ? (
                 <video src={item.url} controls playsInline preload="metadata" className="w-full rounded-2xl bg-black" />
@@ -100,5 +106,33 @@ export function SharedGrid({ projectId, initialItems }: { projectId: number; ini
         )}
       </ul>
     </>
+  );
+}
+
+/** A pinned reply: folded to a few lines until opened. */
+function PinnedReply({ item, byline }: { item: Extract<SharedItem, { kind: "reply" }>; byline: React.ReactNode }) {
+  const { m } = useI18n();
+  const [open, setOpen] = useState(false);
+  const long = item.content.length > 600 || item.content.split("\n").length > 12;
+  return (
+    <article className="flex flex-col gap-2 rounded-3xl border border-line bg-surface p-4 shadow-card">
+      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-subtle">
+        <svg aria-hidden viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="currentColor">
+          <path d="M12 17v5M9 10.76V6h6v4.76a2 2 0 0 0 1.11 1.79l1.78.9A2 2 0 0 1 19 15.24V17H5v-1.76a2 2 0 0 1 1.11-1.79l1.78-.9A2 2 0 0 0 9 10.76ZM8 2h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <span className="flex-1">{m.chat.pinnedReply}</span>
+        <CopyAction getText={() => item.content} label={m.chat.copyMessage} />
+      </div>
+      <div className={`relative ${long && !open ? "max-h-72 overflow-hidden" : ""}`}>
+        <Markdown content={item.content} />
+        {long && !open && <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-surface" />}
+      </div>
+      {long && (
+        <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="self-start text-sm text-accent-fg hover:underline">
+          {open ? m.chat.showLess : m.chat.showMore}
+        </button>
+      )}
+      {byline}
+    </article>
   );
 }

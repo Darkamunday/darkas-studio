@@ -35,6 +35,7 @@ export function ChatApp({
   projectId,
   initialSkills,
   initialPinnedSkills,
+  initialPinnedReplies,
   imageAccess,
   initialImagePrefs,
   isAdmin,
@@ -57,6 +58,8 @@ export function ChatApp({
   /** Skills this person can use, and the ones pinned to this chat. */
   initialSkills: ClientSkill[];
   initialPinnedSkills: number[];
+  /** Replies in this chat pinned to its project's Shared tab. */
+  initialPinnedReplies: number[];
   /** Can make images (admins, or switched on for them). */
   imageAccess: boolean;
   initialImagePrefs: ImagePrefs;
@@ -88,6 +91,7 @@ export function ChatApp({
   const [skills, setSkills] = useState(initialSkills);
   const [pinnedSkills, setPinnedSkills] = useState(() => new Set(initialPinnedSkills));
   const [skillsOpen, setSkillsOpen] = useState(false);
+  const [pinnedReplies, setPinnedReplies] = useState(() => new Set(initialPinnedReplies));
   const pinnedRef = useRef(pinnedSkills);
   const [imagePrefs, setImagePrefs] = useState(initialImagePrefs);
   const [imageOpen, setImageOpen] = useState(false);
@@ -304,6 +308,24 @@ export function ChatApp({
     setMakingSong(null);
     const reason = ((await res?.json().catch(() => null)) as { error?: string } | null)?.error ?? "song_failed";
     setError((m.chat.errors as Record<string, string>)[reason] ?? m.chat.errors.song_failed);
+  }
+
+  /** Pin a reply to the project's Shared tab, or unpin it. */
+  async function toggleReplyPin(messageId: number) {
+    setError(null);
+    const pinning = !pinnedReplies.has(messageId);
+    const res = await fetch("/api/chat/pins", {
+      method: pinning ? "POST" : "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messageId }),
+    }).catch(() => null);
+    if (!res?.ok && !(res?.status === 404 && !pinning)) return setError(m.chat.errors.generic);
+    setPinnedReplies((set) => {
+      const next = new Set(set);
+      if (pinning) next.add(messageId);
+      else next.delete(messageId);
+      return next;
+    });
   }
 
   async function regenerate() {
@@ -581,6 +603,13 @@ export function ChatApp({
                 streaming={chat.streaming}
                 onRegenerate={activeId !== null ? regenerate : undefined}
                 onMakeSong={chat.streaming ? undefined : makeSong}
+                pinnedReplies={pinnedReplies}
+                // Pinning is for shared projects: that's where the Shared tab is.
+                onTogglePinReply={
+                  !chat.streaming && project && (!project.mine || project.everyone || project.members.length > 0)
+                    ? (id) => void toggleReplyPin(id)
+                    : undefined
+                }
                 makingSong={makingSong}
                 onImageAgain={imageAccess ? imageAgain : undefined}
                 onDecide={(id, d) => void decide(id, d)}

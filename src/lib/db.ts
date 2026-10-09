@@ -445,6 +445,20 @@ const MIGRATIONS: string[] = [
   ALTER TABLE generations ADD COLUMN project_hidden INTEGER NOT NULL DEFAULT 0;
   CREATE INDEX generations_project ON generations(project_id);
   `,
+  // 22: replies pinned to a project's Shared tab. The text is copied when pinned, so the pin stays as
+  // it was if the chat changes or is deleted (message_id then goes NULL). Unpinning deletes the row.
+  `
+  CREATE TABLE project_pins (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    message_id INTEGER REFERENCES messages(id) ON DELETE SET NULL,
+    content    TEXT NOT NULL,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+  CREATE INDEX project_pins_project ON project_pins(project_id);
+  CREATE UNIQUE INDEX project_pins_message ON project_pins(project_id, message_id);
+  `,
 ];
 
 function open(): DatabaseSync {

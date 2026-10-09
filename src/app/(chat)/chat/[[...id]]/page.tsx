@@ -9,6 +9,7 @@ import { attachedFileIds, listFiles, toClientFile } from "@/lib/chat/files";
 import { getProject, listProjects, toClientProject } from "@/lib/chat/projects";
 import { conversationSkillIds, listSkills, toClientSkill } from "@/lib/chat/skills";
 import { hasImageAccess, listImages } from "@/lib/chat/images";
+import { pinnedReplyIds } from "@/lib/chat/shared";
 import { listToolCalls } from "@/lib/chat/tools";
 import { DEFAULT_IMAGE_MODEL, IMAGE_PREFS_COOKIE, allowedImageModel, isImageAspect } from "@/config/images";
 import { getI18n } from "@/lib/i18n/server";
@@ -104,6 +105,7 @@ export default async function ChatPage({ params, searchParams }: PageProps<"/cha
       projectId={projectId}
       initialSkills={listSkills(user.id).map(toClientSkill)}
       initialPinnedSkills={id ? conversationSkillIds(user.id, id) : []}
+      initialPinnedReplies={id ? pinnedReplyIds(user.id, id) : []}
       imageAccess={hasImageAccess(user.id)}
       initialImagePrefs={imagePrefs(jar.get(IMAGE_PREFS_COOKIE)?.value, isAdmin)}
       isAdmin={isAdmin}

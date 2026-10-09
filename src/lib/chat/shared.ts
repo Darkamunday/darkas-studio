@@ -2,8 +2,8 @@ import "server-only";
 import { db } from "../db";
 import { getProject } from "./projects";
 
-// A project's Shared tab: images (and other media) made in its chats, and songs made from its chats
-// with "Make it a song". Everyone who can use the project sees them, while the person who made each
+// A project's Shared tab: images (and other media) made in its chats, songs made from its chats with
+// "Make it a song", and replies people pin there. Everyone who can use the project sees them, while the person who made each
 // one can still use the project. The maker or the project's owner can take one off the tab. Private
 // songs stay private, and a deleted chat or song takes its items with it.
 
@@ -25,6 +25,15 @@ export type SharedItem =
       title: string | null;
       style: string | null;
       takes: { id: number; title: string | null; duration: number | null; audioUrl: string; coverUrl: string | null }[];
+      by: string;
+      at: number;
+      canRemove: boolean;
+    }
+  | {
+      kind: "reply";
+      /** The pin. */
+      id: number;
+      content: string;
       by: string;
       at: number;
       canRemove: boolean;
@@ -98,7 +107,19 @@ export function listShared(userId: number, projectId: number): SharedItem[] | un
     });
   }
 
-  return [...media, ...songs.values()].sort((a, b) => b.at - a.at || b.id - a.id);
+  const replies = (
+    db
+      .prepare(
+        `SELECT x.id, x.user_id, x.content, x.created_at, u.username
+           FROM project_pins x JOIN projects p ON p.id = x.project_id JOIN users u ON u.id = x.user_id
+          WHERE x.project_id = ? AND ${MAKER_IN}`,
+      )
+      .all(projectId) as { id: number; user_id: number; content: string; created_at: number; username: string }[]
+  ).map(
+    (r): SharedItem => ({ kind: "reply", id: r.id, content: r.content, by: r.username, at: r.created_at, canRemove: isOwner || r.user_id === userId }),
+  );
+
+  return [...media, ...songs.values(), ...replies].sort((a, b) => b.at - a.at || b.id - a.id);
 }
 
 /** Whether this person may see an image because it's on a Shared tab they can see. */
@@ -108,7 +129,15 @@ export function canSeeSharedImage(userId: number, image: { project_id: number | 
 }
 
 /** Take something off a project's Shared tab: its maker or the project's owner. False if not allowed. */
-export function hideShared(userId: number, projectId: number, kind: "media" | "song", id: number): boolean {
+export function hideShared(userId: number, projectId: number, kind: SharedItem["kind"], id: number): boolean {
+  // A pinned reply is just unpinned; images and songs stay where they were made.
+  if (kind === "reply") {
+    return (
+      db
+        .prepare("DELETE FROM project_pins WHERE id = ? AND project_id = ? AND (user_id = ? OR (SELECT user_id FROM projects WHERE id = ?) = ?)")
+        .run(id, projectId, userId, projectId, userId).changes > 0
+    );
+  }
   const table = kind === "media" ? "chat_images" : "generations";
   return (
     db
@@ -131,4 +160,39 @@ export function projectOfReply(userId: number, messageId: number): number | null
     )
     .get(messageId, userId) as { project_id: number | null } | undefined;
   return row?.project_id && getProject(userId, row.project_id) ? row.project_id : null;
+}
+
+/** Pin one of your replies to its chat's project's Shared tab (a copy of its text). False if it can't be. */
+export function pinReply(userId: number, messageId: number): boolean {
+  const row = db
+    .prepare(
+      `SELECT m.content, c.project_id FROM messages m JOIN conversations c ON c.id = m.conversation_id
+        WHERE m.id = ? AND c.user_id = ? AND m.role = 'assistant'`,
+    )
+    .get(messageId, userId) as { content: string; project_id: number | null } | undefined;
+  if (!row?.project_id || !row.content.trim() || !getProject(userId, row.project_id)) return false;
+  db.prepare("INSERT OR IGNORE INTO project_pins (project_id, user_id, message_id, content) VALUES (?, ?, ?, ?)").run(
+    row.project_id,
+    userId,
+    messageId,
+    row.content,
+  );
+  return true;
+}
+
+/** Unpin one of your replies (from whichever project it's pinned to). */
+export function unpinReply(userId: number, messageId: number): boolean {
+  return db.prepare("DELETE FROM project_pins WHERE message_id = ? AND user_id = ?").run(messageId, userId).changes > 0;
+}
+
+/** Which replies in one of your chats are pinned. */
+export function pinnedReplyIds(userId: number, conversationId: number): number[] {
+  return (
+    db
+      .prepare(
+        `SELECT pp.message_id FROM project_pins pp JOIN messages m ON m.id = pp.message_id
+          WHERE m.conversation_id = ? AND pp.user_id = ?`,
+      )
+      .all(conversationId, userId) as { message_id: number }[]
+  ).map((r) => r.message_id);
 }

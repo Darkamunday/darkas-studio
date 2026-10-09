@@ -5,7 +5,7 @@ import { hideShared } from "@/lib/chat/shared";
 
 export const dynamic = "force-dynamic";
 
-const Body = z.object({ kind: z.enum(["media", "song"]), id: z.number().int().positive() });
+const Body = z.object({ kind: z.enum(["media", "song", "reply"]), id: z.number().int().positive() });
 
 /** Take something off the project's Shared tab (its maker or the project's owner). */
 export async function DELETE(req: NextRequest, ctx: RouteContext<"/api/chat/projects/[id]/shared">) {
