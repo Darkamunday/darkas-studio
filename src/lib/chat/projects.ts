@@ -194,12 +194,15 @@ export function leaveProject(userId: number, id: number): boolean {
 }
 
 function projectMembers(projectId: number): { id: number; username: string }[] {
-  return db
-    .prepare(
-      `SELECT u.id, u.username FROM project_members pm JOIN users u ON u.id = pm.user_id
-        WHERE pm.project_id = ? ORDER BY u.username COLLATE NOCASE`,
-    )
-    .all(projectId) as { id: number; username: string }[];
+  // Copied into plain objects: these go to the browser, and SQLite rows can't be passed to client components.
+  return (
+    db
+      .prepare(
+        `SELECT u.id, u.username FROM project_members pm JOIN users u ON u.id = pm.user_id
+          WHERE pm.project_id = ? ORDER BY u.username COLLATE NOCASE`,
+      )
+      .all(projectId) as { id: number; username: string }[]
+  ).map(({ id, username }) => ({ id, username }));
 }
 
 /** People a project can be shared with: everyone else with chat who isn't disabled. */
