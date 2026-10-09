@@ -13,6 +13,7 @@ export function FilesDialog({
   files,
   attached,
   projectFiles,
+  projectOnly,
   modelLabel,
   windowTokens,
   onFilesChange,
@@ -23,6 +24,8 @@ export function FilesDialog({
   attached: Set<number>;
   /** Files the chat's project brings in (always included; managed in the project's settings). */
   projectFiles: Set<number>;
+  /** Files a project shared with you brings in that aren't yours (shown, but can't be opened or changed). */
+  projectOnly: ClientFile[];
   modelLabel: string;
   /** How many file tokens fit in the model's window alongside a short conversation. */
   windowTokens: number;
@@ -98,7 +101,10 @@ export function FilesDialog({
     else setError(errorText("generic"));
   }
 
-  const used = files.filter((f) => f.always || attached.has(f.id) || projectFiles.has(f.id)).reduce((n, f) => n + f.tokens, 0);
+  const used = [...files.filter((f) => f.always || attached.has(f.id) || projectFiles.has(f.id)), ...projectOnly].reduce(
+    (n, f) => n + f.tokens,
+    0,
+  );
   const over = used > windowTokens;
 
   return (
@@ -157,6 +163,24 @@ export function FilesDialog({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-3 sm:px-4">
+          {projectOnly.length > 0 && (
+            <ul className="divide-y divide-line border-b border-line">
+              {projectOnly.map((f) => (
+                <li key={f.id} className="flex items-center gap-3 px-2 py-2.5">
+                  <input type="checkbox" checked disabled aria-label={f.name} className="h-4 w-4 flex-none accent-[var(--pink)]" />
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium">{f.name}</span>
+                    <span className="text-xs text-subtle">
+                      {fmt(m.chat.fileTokens, { n: num.format(f.tokens) })}
+                      <span className="ml-1.5 rounded-full bg-pink/12 px-1.5 py-0.5 text-[10px] font-medium uppercase text-accent-fg">
+                        {m.chat.projectTag}
+                      </span>
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
           {files.length === 0 ? (
             <p className="px-2 py-6 text-center text-sm text-muted">{m.chat.noFiles}</p>
           ) : (

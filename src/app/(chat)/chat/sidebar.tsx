@@ -121,12 +121,17 @@ export function Sidebar({
             </Link>
             <div className="mt-1 flex items-center gap-2 rounded-2xl border border-line bg-surface px-3 py-2.5">
               <span aria-hidden className="text-lg">{project.emoji}</span>
-              <span className="min-w-0 flex-1 truncate font-medium">{project.name}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium">{project.name}</span>
+                {!project.mine && (
+                  <span className="block truncate text-xs text-subtle">{fmt(m.chat.sharedBy, { name: project.owner ?? "" })}</span>
+                )}
+              </span>
               <button
                 type="button"
                 onClick={onEditProject}
-                aria-label={m.chat.projectSettings}
-                title={m.chat.projectSettings}
+                aria-label={project.mine ? m.chat.projectSettings : m.chat.aboutProject}
+                title={project.mine ? m.chat.projectSettings : m.chat.aboutProject}
                 className="grid h-8 w-8 place-items-center rounded-lg text-subtle transition hover:bg-surface-2 hover:text-fg"
               >
                 <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -170,6 +175,14 @@ export function Sidebar({
                     >
                       <span aria-hidden className="text-base leading-none">{p.emoji}</span>
                       <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                      {(!p.mine || p.everyone || p.members.length > 0) && (
+                        <span title={p.mine ? m.chat.youShared : fmt(m.chat.sharedBy, { name: p.owner ?? "" })} className="flex-none text-subtle">
+                          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+                          </svg>
+                          <span className="sr-only">{p.mine ? m.chat.youShared : fmt(m.chat.sharedBy, { name: p.owner ?? "" })}</span>
+                        </span>
+                      )}
                       {p.count > 0 && <span className="text-xs tabular-nums text-subtle">{p.count}</span>}
                     </Link>
                   </li>

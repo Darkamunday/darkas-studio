@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   const auth = await requireChatApi();
   if (auth.error) return auth.error;
   const parsed = ProjectFields.required({ name: true }).safeParse(await req.json().catch(() => null));
-  if (!parsed.success) return Response.json({ error: "bad_request" }, { status: 400 });
+  if (!parsed.success || (parsed.data.everyone && !auth.user.is_admin)) return Response.json({ error: "bad_request" }, { status: 400 });
   if (countProjects(auth.user.id) >= MAX_PROJECTS_PER_USER) return Response.json({ error: "too_many_projects" }, { status: 400 });
   // A model this person can't use (or one that's gone) is just no preference.
   const model = parsed.data.model ? (allowedModel(parsed.data.model, !!auth.user.is_admin)?.id ?? null) : parsed.data.model;

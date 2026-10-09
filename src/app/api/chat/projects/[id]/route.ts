@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { requireChatApi } from "@/lib/chat/access";
-import { deleteProject, getProject, toClientProject, updateProject } from "@/lib/chat/projects";
+import { deleteProject, getOwnProject, toClientProject, updateProject } from "@/lib/chat/projects";
 import { allowedModel } from "@/config/chat";
 import { ProjectFields } from "../schema";
 
@@ -13,10 +13,12 @@ export async function PATCH(req: NextRequest, ctx: RouteContext<"/api/chat/proje
   if (auth.error) return auth.error;
   const parsed = ProjectFields.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "bad_request" }, { status: 400 });
+  // Only admins share with everyone (they can also stop it, as can the owner if they're no longer one).
+  if (parsed.data.everyone && !auth.user.is_admin) return Response.json({ error: "forbidden" }, { status: 403 });
   const id = Number((await ctx.params).id);
   const model = parsed.data.model ? (allowedModel(parsed.data.model, !!auth.user.is_admin)?.id ?? null) : parsed.data.model;
   if (!updateProject(auth.user.id, id, { ...parsed.data, model })) return notFound();
-  return Response.json({ project: toClientProject(auth.user.id, getProject(auth.user.id, id)!) });
+  return Response.json({ project: toClientProject(auth.user.id, getOwnProject(auth.user.id, id)!) });
 }
 
 /** Delete a project; its chats move back to the main list. */

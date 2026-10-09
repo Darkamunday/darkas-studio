@@ -29,6 +29,7 @@ export function SkillsDialog({
   skills,
   pinned,
   projectSkills,
+  projectOnly,
   isAdmin,
   onSkillsChange,
   onTogglePin,
@@ -38,6 +39,8 @@ export function SkillsDialog({
   pinned: Set<number>;
   /** Skills the chat's project brings in (always used; managed in the project's settings). */
   projectSkills: Set<number>;
+  /** Skills a project shared with you brings in that aren't in your list (shown, but can't be changed). */
+  projectOnly: { id: number; name: string; emoji: string }[];
   isAdmin: boolean;
   onSkillsChange: (skills: ClientSkill[]) => void;
   onTogglePin: (id: number) => void;
@@ -133,6 +136,21 @@ export function SkillsDialog({
               <p className="mt-3 text-sm text-muted">{m.chat.skillsBlurb}</p>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-5 sm:px-6">
+              {projectOnly.length > 0 && (
+                <>
+                  <p className="mt-2 text-xs font-medium uppercase tracking-wide text-subtle">{m.chat.fromProject}</p>
+                  <ul className="divide-y divide-line">
+                    {projectOnly.map((s) => (
+                      <li key={s.id} className="flex items-center gap-3 py-2.5">
+                        <input type="checkbox" checked disabled aria-label={s.name} className="h-4 w-4 flex-none accent-[var(--pink)]" />
+                        <span aria-hidden className="text-lg leading-6">{s.emoji}</span>
+                        <span className="text-sm font-medium">{s.name}</span>
+                        <span className="rounded-full bg-pink/12 px-1.5 py-0.5 text-[10px] font-medium uppercase text-accent-fg">{m.chat.projectTag}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
               {shared.length > 0 && (
                 <>
                   <p className="mt-2 text-xs font-medium uppercase tracking-wide text-subtle">{m.chat.sharedSkills}</p>

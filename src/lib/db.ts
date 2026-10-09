@@ -417,6 +417,20 @@ const MIGRATIONS: string[] = [
 
   ALTER TABLE chat_images ADD COLUMN kind TEXT NOT NULL DEFAULT 'image';
   `,
+  // 20: sharing projects. The owner picks people (project_members), and admins can share one with
+  // everyone who has chat (everyone = 1). Members use the project's setup — instructions, files,
+  // skills, model — in chats of their own, which stay private; only the owner can change it.
+  `
+  ALTER TABLE projects ADD COLUMN everyone INTEGER NOT NULL DEFAULT 0;
+
+  CREATE TABLE project_members (
+    project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    PRIMARY KEY (project_id, user_id)
+  );
+  CREATE INDEX project_members_user ON project_members(user_id);
+  `,
 ];
 
 function open(): DatabaseSync {

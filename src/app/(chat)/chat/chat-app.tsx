@@ -184,7 +184,16 @@ export function ChatApp({
   const closeFiles = useCallback(() => setFilesOpen(false), []);
   const closeProjectDialog = useCallback(() => setProjectDialog(null), []);
   const closeMove = useCallback(() => setMoving(null), []);
-  const closeSkills = useCallback(() => setSkillsOpen(false), []);
+  // The setter is listed only because the React Compiler lint loses track of it in this component.
+  const closeSkills = useCallback(() => setSkillsOpen(false), [setSkillsOpen]);
+
+  /** A project you deleted or left: its chats move back to the main list. */
+  const dropProject = (id: number) => {
+    setProjectDialog(null);
+    setProjects((list) => list.filter((p) => p.id !== id));
+    setConversations((list) => list.map((c) => (c.project_id === id ? { ...c, project_id: null } : c)));
+    if (id === projectId) router.push(activeId ? `/chat/${activeId}` : "/chat");
+  };
 
   /** Move a chat into a project (or out). If it's the open chat, follow it to its new place. */
   async function move(id: number, target: number | null) {
@@ -364,8 +373,11 @@ export function ChatApp({
   const fileWindow = (activeModel?.contextTokens ?? 32_000) - MAX_REPLY_TOKENS - 2_500;
   const projectFiles = new Set(project?.fileIds ?? []);
   const projectSkills = new Set(project?.skillIds ?? []);
-  const activeSkills = skills.filter((s) => pinnedSkills.has(s.id) || projectSkills.has(s.id));
-  const inChat = files.filter((f) => f.always || attached.has(f.id) || projectFiles.has(f.id));
+  // A project shared with you brings files and skills of its owner's that aren't in your own lists.
+  const projectOnlyFiles: ClientFile[] = notIn(project?.files ?? [], files).map((f) => ({ ...f, always: false }));
+  const projectOnlySkills = notIn(project?.skills ?? [], skills);
+  const activeSkills = [...skills.filter((s) => pinnedSkills.has(s.id) || projectSkills.has(s.id)), ...projectOnlySkills];
+  const inChat = [...files.filter((f) => f.always || attached.has(f.id) || projectFiles.has(f.id)), ...projectOnlyFiles];
   // The sidebar lists the chats in the project being looked at, or those in no project.
   const listed = conversations.filter((c) => (c.project_id ?? null) === projectId);
   const projectsWithCounts = projects.map((p) => ({ ...p, count: conversations.filter((c) => c.project_id === p.id).length }));
@@ -442,12 +454,8 @@ export function ChatApp({
             setProjects((list) => (exists ? list.map((p) => (p.id === saved.id ? saved : p)) : [...list, saved]));
             if (!exists) router.push(`/chat?project=${saved.id}`); // straight into the new project
           }}
-          onDeleted={(id) => {
-            setProjectDialog(null);
-            setProjects((list) => list.filter((p) => p.id !== id));
-            setConversations((list) => list.map((c) => (c.project_id === id ? { ...c, project_id: null } : c)));
-            if (id === projectId) router.push(activeId ? `/chat/${activeId}` : "/chat");
-          }}
+          onDeleted={dropProject}
+          onLeft={dropProject}
           onClose={closeProjectDialog}
         />
       )}
@@ -466,6 +474,7 @@ export function ChatApp({
           skills={skills}
           pinned={pinnedSkills}
           projectSkills={projectSkills}
+          projectOnly={projectOnlySkills}
           isAdmin={isAdmin}
           onSkillsChange={setSkills}
           onTogglePin={togglePin}
@@ -477,6 +486,7 @@ export function ChatApp({
           files={files}
           attached={attached}
           projectFiles={projectFiles}
+          projectOnly={projectOnlyFiles}
           modelLabel={activeModel?.label ?? model}
           windowTokens={fileWindow}
           onFilesChange={setFiles}
@@ -697,4 +707,10 @@ function EmptyState({ onPick }: { onPick: (text: string) => void }) {
       </div>
     </div>
   );
+}
+
+/** The items whose ids aren't among `own`. */
+function notIn<T extends { id: number }>(items: T[], own: { id: number }[]): T[] {
+  const ids = new Set(own.map((o) => o.id));
+  return items.filter((x) => !ids.has(x.id));
 }

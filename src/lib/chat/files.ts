@@ -82,7 +82,8 @@ export function setAttachedFiles(userId: number, conversationId: number, fileIds
 
 /**
  * What a chat should know: its attached files, its project's files and the person's always-on ones,
- * by name. `extraIds` are files picked for a chat that doesn't exist yet.
+ * by name. `extraIds` are files picked for a chat that doesn't exist yet. A project's files are its
+ * owner's, so they're read by project (`projectId` must already be checked as one this person can use).
  */
 export function filesForChat(
   userId: number,
@@ -90,20 +91,17 @@ export function filesForChat(
   extraIds: number[] = [],
   projectId: number | null = null,
 ): FileWithText[] {
-  const projectFiles = projectId
-    ? (
-        db
-          .prepare(
-            `SELECT pf.file_id FROM project_files pf JOIN projects p ON p.id = pf.project_id
-              WHERE pf.project_id = ? AND p.user_id = ?`,
-          )
-          .all(projectId, userId) as { file_id: number }[]
-      ).map((r) => r.file_id)
-    : [];
-  const ids = new Set([...(conversationId ? attachedFileIds(userId, conversationId) : []), ...extraIds, ...projectFiles]);
-  return (
+  const ids = new Set([...(conversationId ? attachedFileIds(userId, conversationId) : []), ...extraIds]);
+  const own = (
     db
-      .prepare(`SELECT ${META}, text FROM chat_files WHERE user_id = ? ORDER BY name COLLATE NOCASE, id`)
+      .prepare(`SELECT ${META}, text FROM chat_files WHERE user_id = ?`)
       .all(userId) as FileWithText[]
   ).filter((f) => f.always || ids.has(f.id));
+  const fromProject = projectId
+    ? (db
+        .prepare(`SELECT ${META}, text FROM chat_files WHERE id IN (SELECT file_id FROM project_files WHERE project_id = ?)`)
+        .all(projectId) as FileWithText[])
+    : [];
+  const all = [...own, ...fromProject.filter((f) => !own.some((o) => o.id === f.id))];
+  return all.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }) || a.id - b.id);
 }

@@ -93,11 +93,6 @@ export function conversationSkillIds(userId: number, conversationId: number): nu
   return own ? idsFrom("conversation_skills", "conversation_id", conversationId) : [];
 }
 
-export function projectSkillIds(userId: number, projectId: number): number[] {
-  const own = db.prepare("SELECT 1 FROM projects WHERE id = ? AND user_id = ?").get(projectId, userId);
-  return own ? idsFrom("project_skills", "project_id", projectId) : [];
-}
-
 type PinTarget = { conversationId: number } | { projectId: number };
 
 /** Replace the skills pinned to a chat or project the caller has checked is this person's. Unusable ids are ignored. */
@@ -117,18 +112,29 @@ export function replacePinnedSkills(userId: number, target: PinTarget, skillIds:
   }
 }
 
-/** The skills one message uses: pinned to its chat, pinned to its project, picked for a new chat, and a /slug. */
+/**
+ * The skills one message uses: pinned to its chat, pinned to its project, picked for a new chat, and a
+ * /slug. A project's skills are its owner's choice, so they apply even when they're the owner's own
+ * (`projectId` must already be checked as one this person can use).
+ */
 export function skillsForMessage(
   userId: number,
   opts: { conversationId: number | null; projectId: number | null; extraIds?: number[]; slug?: string | null },
 ): Skill[] {
-  const ids = new Set([
-    ...(opts.conversationId ? conversationSkillIds(userId, opts.conversationId) : []),
-    ...(opts.projectId ? projectSkillIds(userId, opts.projectId) : []),
-    ...(opts.extraIds ?? []),
-  ]);
-  const skills = [...ids].map((id) => getSkill(userId, id)).filter((s): s is Skill => !!s);
+  const own = new Set([...(opts.conversationId ? conversationSkillIds(userId, opts.conversationId) : []), ...(opts.extraIds ?? [])]);
+  const fromProject = opts.projectId
+    ? (db
+        .prepare(`SELECT ${COLUMNS} FROM skills WHERE id IN (SELECT skill_id FROM project_skills WHERE project_id = ?)`)
+        .all(opts.projectId) as Skill[])
+    : [];
+  const skills = [
+    ...fromProject,
+    ...[...own]
+      .filter((id) => !fromProject.some((s) => s.id === id))
+      .map((id) => getSkill(userId, id))
+      .filter((s): s is Skill => !!s),
+  ];
   const slashed = opts.slug ? findSkillBySlug(userId, opts.slug) : undefined;
-  if (slashed && !ids.has(slashed.id)) skills.push(slashed);
+  if (slashed && !skills.some((s) => s.id === slashed.id)) skills.push(slashed);
   return skills;
 }
