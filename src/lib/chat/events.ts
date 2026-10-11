@@ -3,6 +3,7 @@
 
 import type { ClientImage } from "./images";
 import type { ClientToolCall } from "./tools";
+import type { ClientMemory } from "./memory";
 
 export type ChatEvent =
   /** usage: sends today and the daily cap (null = no cap), counting this one. */
@@ -16,4 +17,6 @@ export type ChatEvent =
   | { type: "image"; image: ClientImage }
   /** A connected tool's call: sent when it starts (or waits for approval) and when it finishes. */
   | { type: "tool"; call: ClientToolCall }
+  /** The model saved a memory, or forgot one. */
+  | { type: "memory"; action: "saved" | "forgotten"; memory: ClientMemory }
   | { type: "error"; reason: string };

@@ -41,6 +41,7 @@ export function Sidebar({
   onOpenInstructions,
   fileCount,
   onOpenFiles,
+  onOpenMemory,
   skillCount,
   onOpenSkills,
   projects,
@@ -62,6 +63,8 @@ export function Sidebar({
   onOpenInstructions: () => void;
   fileCount: number;
   onOpenFiles: () => void;
+  /** Open the Memory window (absent when an admin has switched memory off). */
+  onOpenMemory?: () => void;
   skillCount: number;
   onOpenSkills: () => void;
   projects: (ClientProject & { count: number })[];
@@ -306,6 +309,16 @@ export function Sidebar({
             <span className="rounded-full bg-pink/12 px-2 py-0.5 text-xs font-medium text-accent-fg">{m.chat.instructionsOn}</span>
           )}
         </button>
+        {onOpenMemory && (
+          <button
+            type="button"
+            onClick={onOpenMemory}
+            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-muted transition hover:bg-surface-2 hover:text-fg"
+          >
+            <span aria-hidden className="w-4 flex-none text-center text-sm leading-none">🧠</span>
+            <span className="flex-1 truncate text-left">{m.chat.memory}</span>
+          </button>
+        )}
       </div>
       {onClose && (
         <div className="border-t border-line/70 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:hidden">

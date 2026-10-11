@@ -11,6 +11,7 @@ import { conversationSkillIds, listSkills, toClientSkill } from "@/lib/chat/skil
 import { hasImageAccess, listImages } from "@/lib/chat/images";
 import { pinnedReplyIds } from "@/lib/chat/shared";
 import { listUploads } from "@/lib/chat/uploads";
+import { memoriesSavedIn, memoryOnForApp } from "@/lib/chat/memory";
 import { listToolCalls } from "@/lib/chat/tools";
 import { DEFAULT_IMAGE_MODEL, IMAGE_PREFS_COOKIE, allowedImageModel, isImageAspect } from "@/config/images";
 import { getI18n } from "@/lib/i18n/server";
@@ -76,6 +77,7 @@ export default async function ChatPage({ params, searchParams }: PageProps<"/cha
   const images = id ? listImages(user.id, id) : [];
   const toolCalls = id ? listToolCalls(user.id, id) : [];
   const uploads = id ? listUploads(user.id, id) : [];
+  const savedMemories = id ? memoriesSavedIn(user.id, id) : [];
   const messages = id
     ? listMessages(user.id, id)
         .filter((msg) => msg.role !== "system")
@@ -89,6 +91,7 @@ export default async function ChatPage({ params, searchParams }: PageProps<"/cha
           images: images.filter((img) => img.messageId === msg.id),
           tools: toolCalls.filter((t) => t.messageId === msg.id),
           pictures: uploads.filter((u) => u.messageId === msg.id),
+          memories: savedMemories.filter((x) => x.messageId === msg.id).map((memory) => ({ action: "saved" as const, memory })),
         }))
     : [];
 
@@ -111,6 +114,7 @@ export default async function ChatPage({ params, searchParams }: PageProps<"/cha
       initialPinnedReplies={id ? pinnedReplyIds(user.id, id) : []}
       imageAccess={hasImageAccess(user.id)}
       initialImagePrefs={imagePrefs(jar.get(IMAGE_PREFS_COOKIE)?.value, isAdmin)}
+      memoryAvailable={memoryOnForApp()}
       isAdmin={isAdmin}
     />
   );

@@ -67,6 +67,9 @@ export const MAX_INSTRUCTIONS_CHARS = 1_500;
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
 export const MAX_FILE_CHARS = 160_000;
 export const MAX_FILES_PER_USER = 50;
+/** Memories kept per person, and the longest one (they go into every chat, so they stay short). */
+export const MAX_MEMORIES = 50;
+export const MAX_MEMORY_CHARS = 300;
 /** Pictures attached to one message, and the most one may weigh once shrunk in the browser. */
 export const MAX_IMAGES_PER_MESSAGE = 4;
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;

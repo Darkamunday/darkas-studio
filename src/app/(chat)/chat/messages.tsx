@@ -5,7 +5,7 @@ import { useI18n } from "@/lib/i18n/client";
 import { fmt } from "@/lib/i18n/format";
 import { Markdown } from "./markdown";
 import { CopyAction } from "./copy-action";
-import type { UiMessage } from "./use-chat-stream";
+import type { MemoryNote, UiMessage } from "./use-chat-stream";
 import { ImageCard } from "./image-card";
 import { ToolCard } from "./tool-card";
 import type { ClientToolCall } from "@/lib/chat/tools";
@@ -22,6 +22,7 @@ export function MessageList({
   onDecide,
   pinnedReplies,
   onTogglePinReply,
+  onUndoMemory,
 }: {
   messages: UiMessage[];
   streaming: boolean;
@@ -39,6 +40,8 @@ export function MessageList({
   pinnedReplies?: Set<number>;
   /** Pin a reply to the Shared tab or unpin it; absent outside shared projects. */
   onTogglePinReply?: (messageId: number) => void;
+  /** Take back a memory the assistant saved. */
+  onUndoMemory?: (memoryId: number) => void;
 }) {
   const { m } = useI18n();
   const last = messages.length - 1;
@@ -66,6 +69,8 @@ export function MessageList({
               makingSong={makingSong != null && makingSong === msg.id}
               pinned={msg.id !== null && !!pinnedReplies?.has(msg.id)}
               onTogglePin={msg.id !== null && onTogglePinReply ? () => onTogglePinReply(msg.id!) : undefined}
+              memories={msg.memories}
+              onUndoMemory={onUndoMemory}
             />
           )}
         </li>
@@ -135,6 +140,8 @@ function AssistantMessage({
   makingSong,
   pinned,
   onTogglePin,
+  memories = [],
+  onUndoMemory,
 }: {
   content: string;
   images?: ClientImage[];
@@ -150,6 +157,8 @@ function AssistantMessage({
   /** Pinned to the project's Shared tab. */
   pinned?: boolean;
   onTogglePin?: () => void;
+  memories?: MemoryNote[];
+  onUndoMemory?: (memoryId: number) => void;
 }) {
   const { m } = useI18n();
   // Hide any "[Image shown…]" note a model imitates (the server strips it before saving, too).
@@ -179,6 +188,27 @@ function AssistantMessage({
         {images.map((img) => (
           <ImageCard key={img.id} image={img} onAgain={onImageAgain} />
         ))}
+        {memories.length > 0 && (
+          <ul className="mt-2 flex flex-col gap-1">
+            {memories.map((note) => (
+              <li
+                key={`${note.action}-${note.memory.id}`}
+                className="flex items-start gap-2 rounded-xl border border-line bg-surface px-3 py-1.5 text-xs text-muted"
+              >
+                <span aria-hidden>🧠</span>
+                <span className={`min-w-0 flex-1 ${note.undone ? "line-through opacity-60" : ""}`}>
+                  {note.action === "saved" ? m.chat.memorySaved : m.chat.memoryForgotten} <span className="text-fg">“{note.memory.content}”</span>
+                </span>
+                {note.action === "saved" && !note.undone && onUndoMemory && (
+                  <button type="button" onClick={() => onUndoMemory(note.memory.id)} className="flex-none font-medium text-accent-fg hover:underline">
+                    {m.chat.undo}
+                  </button>
+                )}
+                {note.undone && <span className="flex-none text-subtle">{m.chat.memoryUndone}</span>}
+              </li>
+            ))}
+          </ul>
+        )}
         {!live && shown && (
           <div className="-ml-1.5 mt-2 flex items-center gap-0.5">
             <CopyAction getText={() => content} label={m.chat.copyMessage} />

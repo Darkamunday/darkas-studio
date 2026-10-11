@@ -18,6 +18,7 @@ import { filesForChat, setAttachedFiles } from "@/lib/chat/files";
 import { getProject } from "@/lib/chat/projects";
 import { setPinnedSkills, skillsForMessage, slashSlug } from "@/lib/chat/skills";
 import { getMasterPrompt } from "@/lib/chat/master-prompt";
+import { attachMemoriesToMessage, listMemories, memoryActive, noticeMemories } from "@/lib/chat/memory";
 import { claimUploads, imagesForPrompt, unsentUploads, uploadCounts } from "@/lib/chat/uploads";
 import {
   LOAD_TOOLS,
@@ -231,10 +232,13 @@ export async function POST(req: NextRequest) {
   const imageCommand = asked ? /^\/image(?:\s+([\s\S]*))?$/.exec(asked) : null;
   const toolset = toolsetFor(isAdmin, conversation?.id ?? null);
   const useTools = !imageCommand && !!model.tools;
+  // Memory: what's remembered goes to every chat; new facts are noticed after the reply.
+  const remembering = memoryActive(user.id);
   const system =
     systemPrompt({
       base: getMasterPrompt().text,
       instructions: getInstructions(user.id),
+      memory: remembering ? { items: listMemories(user.id) } : null,
       project: project ? { name: project.name, instructions: project.instructions } : null,
       skills,
       files,
@@ -308,6 +312,9 @@ export async function POST(req: NextRequest) {
   const prompt = buildPrompt(madeImages.length ? `${system}${imagesNote(madeImages)}` : system, history, model);
   const needsTitle = !conversation.title && !resuming;
   const firstUserMessage = history.find((m) => m.role === "user")!.content || "(a picture)";
+  // The reply just before the person's message: context for noticing what to remember.
+  const lastAsked = history.findLastIndex((m) => m.role === "user");
+  const previousReply = history.slice(0, lastAsked).findLast((m) => m.role === "assistant")?.content ?? null;
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
@@ -523,11 +530,33 @@ export async function POST(req: NextRequest) {
       }
       send({ type: "done", messageId, thinkingMs });
 
-      if (needsTitle) {
-        const title = req.signal.aborted ? fallbackTitle(firstUserMessage) : await makeTitle(user.id, model.id, firstUserMessage);
-        renameConversation(user.id, conversationId, title);
-        send({ type: "title", title });
-      }
+      // After the reply: the chat's title (first message) and what to remember, side by side.
+      await Promise.all([
+        (async () => {
+          if (!needsTitle) return;
+          const title = req.signal.aborted ? fallbackTitle(firstUserMessage) : await makeTitle(user.id, model.id, firstUserMessage);
+          renameConversation(user.id, conversationId, title);
+          send({ type: "title", title });
+        })(),
+        (async () => {
+          if (!remembering || !("content" in body) || !body.content || imageCommand || req.signal.aborted) return;
+          const changes = await noticeMemories(user.id, body.content, previousReply, async (system, text, format) => {
+            const { text: out, usage } = await completeChat(
+              DEFAULT_MODEL,
+              [
+                { role: "system", content: system },
+                { role: "user", content: text },
+              ],
+              { format, timeoutMs: 15_000 },
+            );
+            if (usage) recordSpend(user.id, DEFAULT_MODEL, usage);
+            return out;
+          });
+          const saved = changes.filter((c) => c.action === "saved").map((c) => c.memory.id);
+          if (messageId !== null && saved.length) attachMemoriesToMessage(saved, messageId);
+          for (const c of changes) send({ type: "memory", action: c.action, memory: { ...c.memory, messageId } });
+        })(),
+      ]);
 
       if (open) {
         open = false;

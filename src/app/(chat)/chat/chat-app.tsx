@@ -14,6 +14,7 @@ import { FilesDialog, PaperclipIcon } from "./files-dialog";
 import { MoveDialog, ProjectDialog } from "./project-dialog";
 import { SkillsDialog, SparkIcon } from "./skills-dialog";
 import { ImagePanel } from "./image-panel";
+import { MemoryDialog } from "./memory-dialog";
 import type { ImagePrefs } from "./use-chat-stream";
 import type { ClientImage } from "@/lib/chat/images";
 import type { ClientSkill } from "@/lib/chat/skills";
@@ -40,6 +41,7 @@ export function ChatApp({
   initialPinnedReplies,
   imageAccess,
   initialImagePrefs,
+  memoryAvailable,
   isAdmin,
 }: {
   initialConversations: SidebarConversation[];
@@ -65,6 +67,8 @@ export function ChatApp({
   /** Can make images (admins, or switched on for them). */
   imageAccess: boolean;
   initialImagePrefs: ImagePrefs;
+  /** Memory is switched on for the app (admins can turn it off). */
+  memoryAvailable: boolean;
   isAdmin: boolean;
 }) {
   const { locale, m } = useI18n();
@@ -97,6 +101,7 @@ export function ChatApp({
   // Pictures for the next message, and documents on their way into Files.
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [dropping, setDropping] = useState(false);
+  const [memoryOpen, setMemoryOpen] = useState(false);
   const pinnedRef = useRef(pinnedSkills);
   const [imagePrefs, setImagePrefs] = useState(initialImagePrefs);
   const [imageOpen, setImageOpen] = useState(false);
@@ -392,6 +397,19 @@ export function ChatApp({
     setError((m.chat.errors as Record<string, string>)[reason] ?? m.chat.errors.song_failed);
   }
 
+  /** Take back a memory the assistant saved (Undo on its note). */
+  async function undoMemory(memoryId: number) {
+    const res = await fetch(`/api/chat/memories/${memoryId}`, { method: "DELETE" }).catch(() => null);
+    if (!res?.ok && res?.status !== 404) return setError(m.chat.errors.generic);
+    chat.setMessages((list) =>
+      list.map((msg) =>
+        msg.memories?.some((n) => n.memory.id === memoryId)
+          ? { ...msg, memories: msg.memories.map((n) => (n.memory.id === memoryId && n.action === "saved" ? { ...n, undone: true } : n)) }
+          : msg,
+      ),
+    );
+  }
+
   /** Pin a reply to the project's Shared tab, or unpin it. */
   async function toggleReplyPin(messageId: number) {
     setError(null);
@@ -524,6 +542,12 @@ export function ChatApp({
       setDrawerOpen(false);
       setInstructionsOpen(true);
     },
+    onOpenMemory: memoryAvailable
+      ? () => {
+          setDrawerOpen(false);
+          setMemoryOpen(true);
+        }
+      : undefined,
   };
 
   return (
@@ -572,6 +596,7 @@ export function ChatApp({
           onClose={closeMove}
         />
       )}
+      {memoryOpen && <MemoryDialog onClose={() => setMemoryOpen(false)} />}
       {imageOpen && <ImagePanel prefs={imagePrefs} isAdmin={isAdmin} onMake={(d, p) => void sendImage(d, p)} onClose={() => setImageOpen(false)} />}
       {skillsOpen && (
         <SkillsDialog
@@ -707,6 +732,7 @@ export function ChatApp({
                 onRegenerate={activeId !== null ? regenerate : undefined}
                 onMakeSong={chat.streaming ? undefined : makeSong}
                 pinnedReplies={pinnedReplies}
+                onUndoMemory={(id) => void undoMemory(id)}
                 // Pinning is for shared projects: that's where the Shared tab is.
                 onTogglePinReply={
                   !chat.streaming && project && (!project.mine || project.everyone || project.members.length > 0)

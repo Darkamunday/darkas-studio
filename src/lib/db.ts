@@ -476,6 +476,25 @@ const MIGRATIONS: string[] = [
   CREATE INDEX chat_uploads_conversation ON chat_uploads(conversation_id);
   CREATE INDEX chat_uploads_user ON chat_uploads(user_id, created_at);
   `,
+  // 24: chat memory. Short facts the assistant keeps about a person across all their chats: saved by
+  // the model itself (with a tool, shown in the reply with Undo) or added by the person. message_id is
+  // the reply that saved one, for showing that note again. users.memory_enabled is the person's own
+  // "Use memory" switch; the app-wide switch is the settings row 'chat_memory' (missing = on).
+  `
+  CREATE TABLE chat_memories (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    content    TEXT NOT NULL,
+    source     TEXT NOT NULL CHECK (source IN ('model', 'person')),
+    message_id INTEGER REFERENCES messages(id) ON DELETE SET NULL,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+  CREATE INDEX chat_memories_user ON chat_memories(user_id);
+  CREATE INDEX chat_memories_message ON chat_memories(message_id);
+
+  ALTER TABLE users ADD COLUMN memory_enabled INTEGER NOT NULL DEFAULT 1;
+  `,
 ];
 
 function open(): DatabaseSync {

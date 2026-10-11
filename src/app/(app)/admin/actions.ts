@@ -9,6 +9,7 @@ import { SunoError } from "@/lib/suno";
 import { fetchTimedLyrics, getTimingTrack } from "@/lib/timed-lyrics";
 import { canViewTrack } from "@/lib/tracks";
 import { setMasterPrompt } from "@/lib/chat/master-prompt";
+import { setMemoryForApp } from "@/lib/chat/memory";
 import {
   addServer,
   deleteServer,
@@ -93,6 +94,13 @@ export async function setChatCap(formData: FormData) {
 export async function setChatForAll(formData: FormData) {
   await requireAdmin();
   db.prepare("UPDATE users SET chat_enabled = ? WHERE is_admin = 0").run(formData.get("enabled") === "1" ? 1 : 0);
+  revalidatePath("/admin", "layout");
+}
+
+/** Chat memory for everyone, on or off (people's saved memories are kept either way). */
+export async function setChatMemory(formData: FormData) {
+  const admin = await requireAdmin();
+  setMemoryForApp(formData.get("enabled") === "1", admin.id);
   revalidatePath("/admin", "layout");
 }
 

@@ -5,6 +5,10 @@ import type { ChatEvent } from "@/lib/chat/events";
 import type { ClientImage } from "@/lib/chat/images";
 import type { ClientToolCall } from "@/lib/chat/tools";
 import type { ClientUpload } from "@/lib/chat/uploads";
+import type { ClientMemory } from "@/lib/chat/memory";
+
+/** A note in a reply that the assistant saved or forgot a memory (undone: the person took it back). */
+export type MemoryNote = { action: "saved" | "forgotten"; memory: ClientMemory; undone?: boolean };
 
 export type UiMessage = {
   /** Stable React key; real ids arrive from the server as the stream goes. */
@@ -21,6 +25,8 @@ export type UiMessage = {
   tools?: ClientToolCall[];
   /** Pictures the person attached (user messages only). */
   pictures?: ClientUpload[];
+  /** Memories this reply saved or forgot. */
+  memories?: MemoryNote[];
 };
 
 /** Image settings sent along with a message: the model and shape picked, and whether to improve the description. */
@@ -165,6 +171,12 @@ export function useChatStream(initial: UiMessage[], conversationId: number | nul
                 const at = list.findIndex((i) => i.id === img.id);
                 return { ...m, images: at < 0 ? [...list, img] : list.map((i) => (i.id === img.id ? img : i)) };
               });
+              break;
+            }
+            case "memory": {
+              gotReply = true;
+              const note: MemoryNote = { action: event.action, memory: event.memory };
+              patchLast((m) => ({ ...m, memories: [...(m.memories ?? []), note] }));
               break;
             }
             case "error":

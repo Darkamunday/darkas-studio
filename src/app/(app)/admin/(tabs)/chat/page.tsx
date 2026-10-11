@@ -7,7 +7,8 @@ import { spendByModel, spendByUser, spendTotals } from "@/lib/chat/spend";
 import { getI18n } from "@/lib/i18n/server";
 import { LOCALE_INFO } from "@/lib/i18n/config";
 import { fmt, plural } from "@/lib/i18n/format";
-import { setChatCap, setChatEnabled, setChatForAll, setImageCap, setImageEnabled } from "../../actions";
+import { setChatCap, setChatEnabled, setChatForAll, setChatMemory, setImageCap, setImageEnabled } from "../../actions";
+import { memoryCounts, memoryOnForApp } from "@/lib/chat/memory";
 import { comfyAccountMonthSpend, imageUsageByUser, reconcileUsage } from "@/lib/chat/images";
 import { DEFAULT_IMAGE_DAILY_CAP } from "@/config/images";
 import { ConfirmButton } from "../../confirm-button";
@@ -36,6 +37,8 @@ export default async function AdminChatPage() {
   const chatUsers = chatUsageByUser();
   const chatTotals = chatUsageTotals();
   const master = getMasterPrompt();
+  const memoryOn = memoryOnForApp();
+  const memories = memoryCounts();
   // Ask Comfy (together, never waiting more than 5s) what recent images used and the account's month so far.
   const within = <T,>(p: Promise<T>, fallback: T) => Promise.race([p, new Promise<T>((r) => setTimeout(() => r(fallback), 5000))]);
   const [, comfySpend] = await Promise.all([within(reconcileUsage().catch(() => {}), undefined), within(comfyAccountMonthSpend(), null)]);
@@ -317,6 +320,40 @@ export default async function AdminChatPage() {
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section className="rounded-3xl border border-line bg-surface shadow-card p-6">
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold">{c.memoryHeading}</h2>
+          <form action={setChatMemory} className="flex items-center gap-2">
+            <input type="hidden" name="enabled" value={memoryOn ? "0" : "1"} />
+            <button
+              type="submit"
+              role="switch"
+              aria-checked={memoryOn}
+              aria-label={c.memoryHeading}
+              title={memoryOn ? c.turnOff : c.turnOn}
+              className={`relative h-6 w-11 flex-none rounded-full transition ${memoryOn ? "bg-brand shadow-glow" : "bg-surface-3"}`}
+            >
+              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${memoryOn ? "left-[22px]" : "left-0.5"}`} />
+            </button>
+            <span className={`text-xs ${memoryOn ? "text-success" : "text-subtle"}`}>{memoryOn ? c.on : c.off}</span>
+          </form>
+        </div>
+        <p className="text-sm text-muted">{c.memoryBlurb}</p>
+        {memories.size === 0 ? (
+          <p className="mt-3 text-sm text-subtle">{c.memoryNone}</p>
+        ) : (
+          <ul className="mt-3 flex flex-wrap gap-2">
+            {chatUsers
+              .filter((u) => memories.has(u.id))
+              .map((u) => (
+                <li key={u.id} className="rounded-full border border-line px-3 py-1 text-sm">
+                  {u.username} <span className="tabular-nums text-subtle">· {num.format(memories.get(u.id)!)}</span>
+                </li>
+              ))}
+          </ul>
+        )}
       </section>
     </div>
   );

@@ -18,19 +18,21 @@ export type PromptSkill = { name: string; instructions: string };
 
 /**
  * The system prompt, in order: the master prompt (admin-set, or the config default); the person's own
- * instructions; the chat's project and its instructions; the skills this message uses; and the
- * reference files. Files are framed as material to draw on, not orders.
+ * instructions; what's remembered about them; the chat's project and its instructions; the skills this
+ * message uses; and the reference files. Files and memories are framed as things to know, not orders.
  */
 export function systemPrompt(parts: {
   base: string;
   instructions?: string | null;
+  /** What's remembered about the person (null when memory is off for them). */
+  memory?: { items: { id: number; content: string }[] } | null;
   project?: { name: string; instructions: string | null } | null;
   skills?: PromptSkill[];
   files?: PromptFile[];
   /** Descriptions of images already made and shown in this chat (newest last). */
   images?: string[];
 }): string {
-  const { base, instructions, project, skills = [], files = [], images = [] } = parts;
+  const { base, instructions, memory, project, skills = [], files = [], images = [] } = parts;
   const quote = (s: string) => s.replace(/"/g, "'");
   let prompt = base;
   if (instructions) {
@@ -40,6 +42,17 @@ The person you're talking with has given these custom instructions for how you s
 <custom_instructions>
 ${instructions}
 </custom_instructions>`;
+  }
+  if (memory) {
+    prompt += `
+
+You have a memory across this person's chats: facts from what they say are saved automatically after each message (they can see and edit them), so don't say you can't remember things between chats.`;
+    if (memory.items.length) {
+      prompt += ` What you remember about them — use it where it helps; don't recite it or mention that you remember unless it's relevant or they ask:
+<memories>
+${memory.items.map((x) => `- ${x.content}`).join("\n")}
+</memories>`;
+    }
   }
   if (project) {
     prompt += `
