@@ -101,6 +101,17 @@ with its files. People restore their own deletions from **Recently deleted** (li
 catalogue); songs an admin removes skip the owner's bin and are restored from the Admin page. Songs
 deleted before the bin existed can be re-fetched from the provider while it still has them.
 
+## Tests
+
+`npm test` runs the tests in `tests/` with Node's test runner. They cover who can see and change what:
+shared projects and their Shared tab, pinned replies, chat picture uploads, memory, and music and picture
+albums (private songs never shown to others). Each test file gets a fresh, empty database and media folder
+in a temp directory (`tests/setup.mjs`), so they never touch live data; fixtures are invented
+(`tests/helpers.ts`). `deploy/deploy.sh` runs them before building and stops if any fail.
+
+Code that imports Next's request helpers (`@/lib/auth`, `@/lib/chat/access`) can't load outside Next,
+so tests call the library functions underneath the routes rather than the routes themselves.
+
 ## Languages
 
 The interface is in English, French, Indonesian, Brazilian Portuguese and Malay. Visitors get their

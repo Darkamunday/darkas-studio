@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Rebuild and restart production. Run from anywhere: /opt/music-app/deploy/deploy.sh
-# Checks and the build run before the restart, so a broken build never takes the site down.
+# Checks, tests and the build run before the restart, so a broken build never takes the site down.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -10,6 +10,9 @@ npm install --no-audit --no-fund
 echo "==> Type-checking and linting"
 npx tsc --noEmit
 npx eslint src
+
+echo "==> Testing (on a throwaway database)"
+npm test
 
 echo "==> Building"
 NODE_ENV=production npm run build
