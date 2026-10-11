@@ -8,7 +8,9 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: (await getI18n()).m.albums.heading };
 }
 
-export default async function AlbumsPage() {
+// /albums: music albums; /albums?kind=pictures: picture albums.
+export default async function AlbumsPage({ searchParams }: PageProps<"/albums">) {
   const user = await requireUser();
-  return <AlbumsIndex albums={listAlbums(user.id)} isAdmin={user.is_admin === 1} />;
+  const kind = (await searchParams).kind === "pictures" ? "pictures" : "music";
+  return <AlbumsIndex key={kind} kind={kind} albums={listAlbums(user.id, kind)} isAdmin={user.is_admin === 1} />;
 }

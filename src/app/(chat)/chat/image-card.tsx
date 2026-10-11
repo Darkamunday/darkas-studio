@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/client";
 import { findImageModel } from "@/config/images";
 import type { ClientImage } from "@/lib/chat/images";
+import { AlbumPicker } from "@/components/album-picker";
 
 /**
  * An image in a reply: a soft placeholder while it's painting (checking back if the page was
@@ -13,6 +14,7 @@ export function ImageCard({ image: initial, onAgain }: { image: ClientImage; onA
   const { m } = useI18n();
   const [image, setImage] = useState(initial);
   const [picking, setPicking] = useState(false);
+  const [albumPicking, setAlbumPicking] = useState(false);
 
   // A newer copy from the stream wins.
   const [seen, setSeen] = useState(initial);
@@ -78,6 +80,15 @@ export function ImageCard({ image: initial, onAgain }: { image: ClientImage; onA
               {m.chat.imageAgain}
             </button>
           )}
+          {image.status === "ready" && image.kind !== "audio" && (
+            <button
+              type="button"
+              onClick={() => setAlbumPicking(true)}
+              className="inline-flex h-7 items-center rounded-lg px-2 text-xs text-subtle transition hover:bg-surface-3 hover:text-fg"
+            >
+              {m.albums.addToAlbum}
+            </button>
+          )}
           {image.status === "ready" && image.kind === "image" && (
             <button
               type="button"
@@ -90,6 +101,7 @@ export function ImageCard({ image: initial, onAgain }: { image: ClientImage; onA
         </div>
       )}
       {picking && <CoverPicker imageId={image.id} onClose={() => setPicking(false)} />}
+      {albumPicking && <AlbumPicker kind="pictures" itemId={image.id} title={image.prompt} onClose={() => setAlbumPicking(false)} />}
     </figure>
   );
 }

@@ -15,7 +15,8 @@ export async function PATCH(req: NextRequest, ctx: RouteContext<"/api/albums/[id
   if (!parsed.success) return Response.json({ error: "bad_request" }, { status: 400 });
   // Only admins share with everyone (anyone can stop it).
   if (parsed.data.everyone && !user.is_admin) return Response.json({ error: "forbidden" }, { status: 403 });
-  const album = updateAlbum(user.id, Number((await ctx.params).id), parsed.data);
+  // The kind is fixed once an album is made.
+  const album = updateAlbum(user.id, Number((await ctx.params).id), { ...parsed.data, kind: undefined });
   return album ? Response.json({ album }) : notFound();
 }
 
@@ -23,5 +24,5 @@ export async function PATCH(req: NextRequest, ctx: RouteContext<"/api/albums/[id
 export async function DELETE(_req: NextRequest, ctx: RouteContext<"/api/albums/[id]">) {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
-  return deleteAlbum(user.id, Number((await ctx.params).id)) ? Response.json({ ok: true }) : notFound();
+  return (await deleteAlbum(user.id, Number((await ctx.params).id))) ? Response.json({ ok: true }) : notFound();
 }

@@ -531,6 +531,27 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX album_tracks_track ON album_tracks(track_id);
   `,
+  // 26: picture albums — the same albums (private or shared, collaborative), holding pictures and video
+  // made in chat. An album keeps its own copy of each file (MEDIA_DIR/album-pictures), so deleting the
+  // chat it came from doesn't take it out of the album. source_image_id is the chat image it came from.
+  `
+  ALTER TABLE albums ADD COLUMN kind TEXT NOT NULL DEFAULT 'music' CHECK (kind IN ('music', 'pictures'));
+  ALTER TABLE albums ADD COLUMN cover_picture_id INTEGER;
+
+  CREATE TABLE album_pictures (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    album_id        INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+    added_by        INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    source_image_id INTEGER,
+    kind            TEXT NOT NULL CHECK (kind IN ('image', 'video')),
+    prompt          TEXT NOT NULL,
+    file_path       TEXT NOT NULL,
+    position        INTEGER NOT NULL,
+    added_at        INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+  CREATE INDEX album_pictures_album ON album_pictures(album_id, position);
+  CREATE INDEX album_pictures_source ON album_pictures(source_image_id);
+  `,
 ];
 
 function open(): DatabaseSync {

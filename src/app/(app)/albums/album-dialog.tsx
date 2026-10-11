@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n/client";
 import { fmt } from "@/lib/i18n/format";
-import type { ClientAlbum } from "@/lib/albums";
+import type { AlbumKind, ClientAlbum } from "@/lib/albums";
 
 type Person = { id: number; username: string };
 
@@ -13,6 +13,7 @@ const DESCRIPTION_MAX = 500;
 /** Create an album, or change (and delete) one of yours: name, description and who it's shared with. */
 export function AlbumDialog({
   album,
+  kind: newKind = "music",
   isAdmin,
   onSaved,
   onDeleted,
@@ -20,6 +21,8 @@ export function AlbumDialog({
 }: {
   /** null to create one. */
   album: ClientAlbum | null;
+  /** The kind of album to create. */
+  kind?: AlbumKind;
   isAdmin: boolean;
   onSaved: (album: ClientAlbum) => void;
   onDeleted?: (id: number) => void;
@@ -55,6 +58,7 @@ export function AlbumDialog({
     };
   }, []);
 
+  const pictures = (album?.kind ?? newKind) === "pictures";
   const errorText = (reason: string) => (a.errors as Record<string, string>)[reason] ?? a.errors.generic;
 
   async function save() {
@@ -64,6 +68,7 @@ export function AlbumDialog({
       method: album ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        ...(album ? {} : { kind: newKind }),
         name: name.trim(),
         description: description.trim() || null,
         memberIds: shared && !everyone ? [...memberIds] : [],
@@ -101,7 +106,7 @@ export function AlbumDialog({
       >
         <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">
           <h2 id="album-title" className="text-lg font-semibold">
-            {album ? a.settings : a.newAlbum}
+            {album ? a.settings : pictures ? a.newPictureAlbum : a.newAlbum}
           </h2>
 
           <label className="mt-5 block text-sm font-medium">
@@ -136,7 +141,7 @@ export function AlbumDialog({
               </button>
               <button type="button" aria-pressed={shared} onClick={() => setShared(true)} className={choice(shared)}>
                 <span className="block font-medium">👥 {a.shared}</span>
-                <span className="block text-xs text-subtle">{a.sharedHint}</span>
+                <span className="block text-xs text-subtle">{pictures ? a.sharedHintPictures : a.sharedHint}</span>
               </button>
             </div>
 
@@ -154,7 +159,7 @@ export function AlbumDialog({
                     />
                     <span className="min-w-0 flex-1">
                       <span className="block text-sm">{a.everyone}</span>
-                      <span className="block text-xs text-subtle">{a.everyoneHint}</span>
+                      <span className="block text-xs text-subtle">{pictures ? a.everyoneHintPictures : a.everyoneHint}</span>
                     </span>
                   </label>
                 )}
@@ -204,7 +209,7 @@ export function AlbumDialog({
                       </p>
                     </>
                   ))}
-                <p className="mt-3 text-xs text-subtle">{a.collaborativeHint}</p>
+                <p className="mt-3 text-xs text-subtle">{pictures ? a.collaborativeHintPictures : a.collaborativeHint}</p>
               </div>
             )}
           </fieldset>

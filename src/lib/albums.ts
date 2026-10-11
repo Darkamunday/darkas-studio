@@ -1,10 +1,14 @@
 import "server-only";
 import { db, transaction } from "./db";
 import { coverVersion } from "./cover-url";
+import { removeMediaFile } from "./storage";
 
-// Music albums. Each has an owner and is private unless shared with chosen people or (by an admin)
-// with everyone. Shared albums are collaborative: everyone in one can add songs they can see, and remove
-// the ones they added; only the owner renames it, sets its cover, reorders, shares or deletes it.
+export type AlbumKind = "music" | "pictures";
+
+// Albums: music albums (songs) and picture albums (pictures and video made in chat — see
+// picture-albums.ts). Each has an owner and is private unless shared with chosen people or (by an admin)
+// with everyone. Shared albums are collaborative: everyone in one can add things, and remove the ones
+// they added; only the owner renames it, sets its cover, reorders, shares or deletes it.
 // Songs always follow the usual rule — a private song is only ever shown to the person who made it.
 
 export const ALBUM_NAME_MAX = 80;
@@ -12,13 +16,15 @@ export const ALBUM_DESCRIPTION_MAX = 500;
 export const MAX_ALBUMS_PER_USER = 50;
 export const MAX_TRACKS_PER_ALBUM = 200;
 
-type AlbumRow = {
+export type AlbumRow = {
   id: number;
   user_id: number;
   owner: string;
+  kind: AlbumKind;
   name: string;
   description: string | null;
   cover_track_id: number | null;
+  cover_picture_id: number | null;
   everyone: number;
   updated_at: number;
 };
@@ -28,6 +34,7 @@ type Person = { id: number; username: string };
 /** An album as the browser sees it. Shared by server and client code. */
 export type ClientAlbum = {
   id: number;
+  kind: AlbumKind;
   name: string;
   description: string;
   /** This person owns it (and so can change it). */
@@ -39,10 +46,12 @@ export type ClientAlbum = {
   members: Person[];
   /** This person was added by name (and so can leave). */
   member: boolean;
-  /** Songs this person can see in it. */
-  trackCount: number;
+  /** Songs (or pictures) this person can see in it. */
+  itemCount: number;
   coverUrl: string | null;
+  /** The song or picture the owner picked as the cover. */
   coverTrackId: number | null;
+  coverPictureId: number | null;
   updatedAt: number;
 };
 
@@ -62,7 +71,7 @@ export type AlbumTrack = {
   canRemove: boolean;
 };
 
-const COLUMNS = `a.id, a.user_id, u.username AS owner, a.name, a.description, a.cover_track_id, a.everyone, a.updated_at`;
+const COLUMNS = `a.id, a.user_id, u.username AS owner, a.kind, a.name, a.description, a.cover_track_id, a.cover_picture_id, a.everyone, a.updated_at`;
 const FROM = "FROM albums a JOIN users u ON u.id = a.user_id";
 /** Albums this person can open: their own, ones shared with them, and ones shared with everyone. */
 const USABLE = `(a.user_id = :uid OR a.everyone = 1
@@ -84,9 +93,39 @@ function members(albumId: number): Person[] {
   ).map(({ id, username }) => ({ id, username }));
 }
 
+/** A picture album's cover (the one picked, else the first still picture) and how many it holds. */
+function pictureSummary(a: AlbumRow): { coverUrl: string | null; count: number } {
+  const cover = db
+    .prepare(
+      `SELECT id FROM album_pictures WHERE album_id = ? AND kind = 'image'
+        ORDER BY id = ? DESC, position LIMIT 1`,
+    )
+    .get(a.id, a.cover_picture_id ?? 0) as { id: number } | undefined;
+  const count = (db.prepare("SELECT COUNT(*) AS n FROM album_pictures WHERE album_id = ?").get(a.id) as { n: number }).n;
+  return { coverUrl: cover ? `/api/albums/pictures/${cover.id}` : null, count };
+}
+
 function toClient(userId: number, a: AlbumRow): ClientAlbum {
   const mine = a.user_id === userId;
   const people = members(a.id);
+  const base = {
+    id: a.id,
+    kind: a.kind,
+    name: a.name,
+    description: a.description ?? "",
+    mine,
+    owner: mine ? null : a.owner,
+    everyone: !!a.everyone,
+    members: mine ? people : [],
+    member: people.some((p) => p.id === userId),
+    coverTrackId: a.cover_track_id,
+    coverPictureId: a.cover_picture_id,
+    updatedAt: a.updated_at,
+  };
+  if (a.kind === "pictures") {
+    const { coverUrl, count } = pictureSummary(a);
+    return { ...base, itemCount: count, coverUrl };
+  }
   // The cover: the one the owner picked, if this person can see it; otherwise the first song with art.
   const covers = db
     .prepare(
@@ -103,35 +142,24 @@ function toClient(userId: number, a: AlbumRow): ClientAlbum {
       )
       .get({ album: a.id, uid: userId }) as { n: number }
   ).n;
-  return {
-    id: a.id,
-    name: a.name,
-    description: a.description ?? "",
-    mine,
-    owner: mine ? null : a.owner,
-    everyone: !!a.everyone,
-    members: mine ? people : [],
-    member: people.some((p) => p.id === userId),
-    trackCount: count,
-    coverUrl: covers ? coverOf(covers.id, covers.image_path) : null,
-    coverTrackId: a.cover_track_id,
-    updatedAt: a.updated_at,
-  };
+  return { ...base, itemCount: count, coverUrl: covers ? coverOf(covers.id, covers.image_path) : null };
 }
 
-/** Every album this person can open: their own first, then shared ones, most recently changed first. */
-export function listAlbums(userId: number): ClientAlbum[] {
+/** Every album of one kind this person can open: their own first, then shared ones, most recently changed first. */
+export function listAlbums(userId: number, kind: AlbumKind = "music"): ClientAlbum[] {
   const rows = db
-    .prepare(`SELECT ${COLUMNS} ${FROM} WHERE ${USABLE} ORDER BY a.user_id <> :uid, a.updated_at DESC, a.id DESC`)
-    .all({ uid: userId }) as AlbumRow[];
+    .prepare(`SELECT ${COLUMNS} ${FROM} WHERE ${USABLE} AND a.kind = :kind ORDER BY a.user_id <> :uid, a.updated_at DESC, a.id DESC`)
+    .all({ uid: userId, kind }) as AlbumRow[];
   return rows.map((a) => toClient(userId, a));
 }
 
-function usableRow(userId: number, id: number): AlbumRow | undefined {
+/** An album this person can open (for picture-albums.ts and here). */
+export function usableRow(userId: number, id: number): AlbumRow | undefined {
   return db.prepare(`SELECT ${COLUMNS} ${FROM} WHERE a.id = :id AND ${USABLE}`).get({ uid: userId, id }) as AlbumRow | undefined;
 }
 
-function ownRow(userId: number, id: number): AlbumRow | undefined {
+/** An album this person owns. */
+export function ownRow(userId: number, id: number): AlbumRow | undefined {
   return db.prepare(`SELECT ${COLUMNS} ${FROM} WHERE a.id = :id AND a.user_id = :uid`).get({ uid: userId, id }) as AlbumRow | undefined;
 }
 
@@ -146,6 +174,8 @@ export function countOwnAlbums(userId: number): number {
 }
 
 export type AlbumInput = {
+  /** Set when it's made; can't change after. */
+  kind?: AlbumKind;
   name?: string;
   description?: string | null;
   /** Who it's shared with (replaces the list). */
@@ -154,11 +184,15 @@ export type AlbumInput = {
   everyone?: boolean;
   /** The song whose art is the cover (must be in the album), or null for the first one. */
   coverTrackId?: number | null;
+  /** The picture that's the cover (must be in the album), or null for the first one. */
+  coverPictureId?: number | null;
 };
 
 export function createAlbum(userId: number, input: AlbumInput & { name: string }): ClientAlbum {
   const id = transaction(() => {
-    const id = Number(db.prepare("INSERT INTO albums (user_id, name) VALUES (?, ?)").run(userId, input.name).lastInsertRowid);
+    const id = Number(
+      db.prepare("INSERT INTO albums (user_id, name, kind) VALUES (?, ?, ?)").run(userId, input.name, input.kind ?? "music").lastInsertRowid,
+    );
     applyUpdate(userId, id, input);
     return id;
   });
@@ -182,6 +216,12 @@ function applyUpdate(userId: number, id: number, input: AlbumInput) {
       input.coverTrackId !== null && !!db.prepare("SELECT 1 FROM album_tracks WHERE album_id = ? AND track_id = ?").get(id, input.coverTrackId);
     set("cover_track_id", inAlbum ? input.coverTrackId : null);
   }
+  if (input.coverPictureId !== undefined) {
+    const inAlbum =
+      input.coverPictureId !== null &&
+      !!db.prepare("SELECT 1 FROM album_pictures WHERE album_id = ? AND id = ? AND kind = 'image'").get(id, input.coverPictureId);
+    set("cover_picture_id", inAlbum ? input.coverPictureId : null);
+  }
   if (input.memberIds !== undefined) {
     db.prepare("DELETE FROM album_members WHERE album_id = ?").run(id);
     const add = db.prepare(
@@ -191,9 +231,13 @@ function applyUpdate(userId: number, id: number, input: AlbumInput) {
   }
 }
 
-/** Delete an album (its songs aren't touched). */
-export function deleteAlbum(userId: number, id: number): boolean {
-  return db.prepare("DELETE FROM albums WHERE id = ? AND user_id = ?").run(id, userId).changes > 0;
+/** Delete an album. Songs aren't touched; a picture album's own copies of its pictures are deleted. */
+export async function deleteAlbum(userId: number, id: number): Promise<boolean> {
+  if (!ownRow(userId, id)) return false;
+  const files = db.prepare("SELECT file_path FROM album_pictures WHERE album_id = ?").all(id) as { file_path: string }[];
+  db.prepare("DELETE FROM albums WHERE id = ? AND user_id = ?").run(id, userId);
+  for (const f of files) await removeMediaFile(f.file_path).catch(() => {});
+  return true;
 }
 
 /** Leave an album shared with you. Songs you added stay in it. */
@@ -255,7 +299,7 @@ export type AddResult = "added" | "already" | "not_found" | "full";
 
 /** Put a song this person can see into an album they can open (at the end). */
 export function addTrack(userId: number, albumId: number, trackId: number): AddResult {
-  if (!usableRow(userId, albumId)) return "not_found";
+  if (usableRow(userId, albumId)?.kind !== "music") return "not_found";
   const visible = db
     .prepare(`SELECT 1 FROM tracks t JOIN generations g ON g.id = t.generation_id WHERE t.id = :track AND ${VISIBLE}`)
     .get({ track: trackId, uid: userId });
@@ -312,7 +356,7 @@ export function albumsForTrack(userId: number, trackId: number): { id: number; n
         `SELECT a.id, a.name, a.user_id = :uid AS mine,
                 (a.everyone = 1 OR EXISTS (SELECT 1 FROM album_members am2 WHERE am2.album_id = a.id)) AS shared,
                 EXISTS (SELECT 1 FROM album_tracks at WHERE at.album_id = a.id AND at.track_id = :track) AS has
-           FROM albums a WHERE ${USABLE} ORDER BY a.user_id <> :uid, a.updated_at DESC`,
+           FROM albums a WHERE ${USABLE} AND a.kind = 'music' ORDER BY a.user_id <> :uid, a.updated_at DESC`,
       )
       .all({ uid: userId, track: trackId }) as { id: number; name: string; mine: number; shared: number; has: number }[]
   ).map((r) => ({ id: r.id, name: r.name, mine: !!r.mine, shared: !!r.shared, has: !!r.has }));
