@@ -18,6 +18,7 @@ export function NavLinks({
   const links = [
     { href: "/generate", label: m.nav.create },
     { href: "/catalogue", label: m.nav.catalogue },
+    { href: "/albums", label: m.nav.albums },
     ...(showChat ? [{ href: "/chat", label: m.nav.chat }] : []),
     ...(isAdmin ? [{ href: "/admin", label: m.nav.admin }] : []),
   ];

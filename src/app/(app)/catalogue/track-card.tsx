@@ -12,6 +12,7 @@ import { RemixToggle } from "./remix-toggle";
 import { CoverChanger } from "./cover-changer";
 import { coversEnabled } from "@/lib/comfy";
 import { ShareButton } from "./share-button";
+import { AddToAlbum } from "./add-to-album";
 import { COVER_PROMPT_MAX, coverVersion } from "@/lib/cover-url";
 
 export async function TrackCard({
@@ -120,6 +121,7 @@ export async function TrackCard({
                 <RemixIcon /> {m.catalogue.remix}
               </Link>
             )}
+            <AddToAlbum trackId={t.id} title={t.title ?? m.common.untitled} />
             <a href={`/api/media/${t.id}?download=1`} className={btnSecondary}>
               <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14" />

@@ -495,6 +495,42 @@ const MIGRATIONS: string[] = [
 
   ALTER TABLE users ADD COLUMN memory_enabled INTEGER NOT NULL DEFAULT 1;
   `,
+  // 25: music albums. An album is its owner's; it's private unless shared with chosen people
+  // (album_members) or, by an admin, with everyone. Shared albums are collaborative: everyone in one can
+  // add songs (and remove their own); the owner can remove any, reorder, rename and set the cover.
+  // album_tracks.track_id has no foreign key on purpose: a song in the bin drops out of its albums and
+  // comes back in the same place if restored. Songs are always shown under the usual privacy rule.
+  `
+  CREATE TABLE albums (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name           TEXT NOT NULL,
+    description    TEXT,
+    cover_track_id INTEGER,
+    everyone       INTEGER NOT NULL DEFAULT 0,
+    created_at     INTEGER NOT NULL DEFAULT (unixepoch()),
+    updated_at     INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+  CREATE INDEX albums_user ON albums(user_id);
+
+  CREATE TABLE album_members (
+    album_id   INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    PRIMARY KEY (album_id, user_id)
+  );
+  CREATE INDEX album_members_user ON album_members(user_id);
+
+  CREATE TABLE album_tracks (
+    album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+    track_id INTEGER NOT NULL,
+    added_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    position INTEGER NOT NULL,
+    added_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    PRIMARY KEY (album_id, track_id)
+  );
+  CREATE INDEX album_tracks_track ON album_tracks(track_id);
+  `,
 ];
 
 function open(): DatabaseSync {
