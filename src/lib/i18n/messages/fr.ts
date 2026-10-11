@@ -293,6 +293,12 @@ export const fr: Messages = {
       forbidden: "Seuls les admins peuvent partager avec tout le monde.",
     },
   },
+  player: {
+    label: "Lecture en cours",
+    previous: "Précédent",
+    next: "Suivant",
+    close: "Arrêter et fermer le lecteur",
+  },
   catalogue: {
     heading: "Le catalogue",
     matching: { one: "{n} morceau correspondant", other: "{n} morceaux correspondants" },

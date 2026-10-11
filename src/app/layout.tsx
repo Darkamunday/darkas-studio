@@ -4,6 +4,8 @@ import { cookies } from "next/headers";
 import { LOCALE_INFO } from "@/lib/i18n/config";
 import { I18nProvider } from "@/lib/i18n/client";
 import { getI18n } from "@/lib/i18n/server";
+import { NowPlayingProvider } from "@/components/now-playing";
+import { SinglePlayback } from "@/components/single-playback";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -41,7 +43,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           <div className="absolute -right-32 -top-40 h-[420px] w-[420px] animate-float rounded-full bg-violet/20 blur-[110px] [animation-delay:-7s] light:bg-violet/12" />
           <div className="absolute left-1/3 -top-64 h-[360px] w-[360px] rounded-full bg-peach/10 blur-[120px]" />
         </div>
-        <I18nProvider locale={locale}>{children}</I18nProvider>
+        <I18nProvider locale={locale}>
+          {/* One player for the whole app, so music keeps going from page to page. */}
+          <NowPlayingProvider>{children}</NowPlayingProvider>
+        </I18nProvider>
+        <SinglePlayback />
       </body>
     </html>
   );

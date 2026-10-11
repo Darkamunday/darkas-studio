@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useI18n } from "@/lib/i18n/client";
 import { fmt, plural } from "@/lib/i18n/format";
@@ -9,6 +9,7 @@ import { btnPrimary, btnSecondary, card } from "@/components/ui";
 import type { AlbumTrack, ClientAlbum } from "@/lib/albums";
 import { setTrackPrivateAction } from "../../catalogue/actions";
 import { AlbumDialog } from "../album-dialog";
+import { useNowPlaying, type QueueTrack } from "@/components/now-playing";
 
 const time = (s: number | null) =>
   s !== null && Number.isFinite(s) && s >= 0 ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}` : "--:--";
@@ -24,59 +25,26 @@ export function AlbumView({ album: initial, initialTracks, isAdmin }: { album: C
   const [error, setError] = useState<string | null>(null);
   const shared = album.everyone || album.members.length > 0 || !album.mine;
 
-  // ---- playback: one <audio>, moving down the list ----
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [current, setCurrent] = useState<number | null>(null);
-  const [playing, setPlaying] = useState(false);
-  const [position, setPosition] = useState(0);
-  const [length, setLength] = useState(0);
-  const playingTrack = tracks.find((t) => t.id === current) ?? null;
+  // ---- playback: through the app-wide player, so it carries on from page to page ----
+  const np = useNowPlaying();
+  const queue: QueueTrack[] = tracks.map((t) => ({
+    id: t.id,
+    title: t.title ?? m.common.untitled,
+    artist: t.username,
+    audioUrl: t.audioUrl,
+    coverUrl: t.coverUrl,
+    duration: t.duration,
+    href: `/albums/${album.id}`,
+  }));
+  // This album is what's playing (rather than the same song started from somewhere else).
+  const albumPlaying = !!np.current && np.current.href === `/albums/${album.id}`;
+  const current = albumPlaying ? np.current!.id : null;
+  const playing = albumPlaying && np.playing;
 
   function play(trackId: number) {
-    const el = audioRef.current;
-    if (!el) return;
-    if (current === trackId) {
-      if (el.paused) void el.play().catch(() => {});
-      else el.pause();
-      return;
-    }
-    const track = tracks.find((t) => t.id === trackId);
-    if (!track) return;
-    setCurrent(trackId);
-    setPosition(0);
-    setLength(track.duration ?? 0);
-    el.src = track.audioUrl;
-    void el.play().catch(() => {});
+    if (current === trackId) np.toggle();
+    else np.playFrom(queue, trackId);
   }
-
-  function step(by: 1 | -1) {
-    const at = tracks.findIndex((t) => t.id === current);
-    const next = tracks[at + by];
-    if (next) play(next.id);
-    else if (by === 1) {
-      audioRef.current?.pause();
-      setCurrent(null);
-    }
-  }
-
-  useEffect(() => {
-    const el = audioRef.current;
-    if (!el) return;
-    const onPlay = () => setPlaying(true);
-    const onPause = () => setPlaying(false);
-    const onTime = () => setPosition(el.currentTime);
-    const onMeta = () => Number.isFinite(el.duration) && setLength(el.duration);
-    el.addEventListener("play", onPlay);
-    el.addEventListener("pause", onPause);
-    el.addEventListener("timeupdate", onTime);
-    el.addEventListener("loadedmetadata", onMeta);
-    return () => {
-      el.removeEventListener("play", onPlay);
-      el.removeEventListener("pause", onPause);
-      el.removeEventListener("timeupdate", onTime);
-      el.removeEventListener("loadedmetadata", onMeta);
-    };
-  }, []);
 
   // ---- changes ----
   async function tracksCall(method: "DELETE" | "PATCH", body: object) {
@@ -93,7 +61,6 @@ export function AlbumView({ album: initial, initialTracks, isAdmin }: { album: C
 
   async function remove(track: AlbumTrack) {
     if (!window.confirm(fmt(a.removeConfirm, { title: track.title ?? m.common.untitled }))) return;
-    if (current === track.id) step(1);
     await tracksCall("DELETE", { trackId: track.id });
   }
 
@@ -133,7 +100,6 @@ export function AlbumView({ album: initial, initialTracks, isAdmin }: { album: C
 
   return (
     <div className="flex flex-col gap-6">
-      <audio ref={audioRef} preload="none" onEnded={() => step(1)} />
       <Link href="/albums" className="inline-flex w-fit items-center gap-1.5 text-sm text-subtle transition hover:text-fg">
         <span aria-hidden>←</span> {a.heading}
       </Link>
@@ -158,7 +124,7 @@ export function AlbumView({ album: initial, initialTracks, isAdmin }: { album: C
             {total > 0 ? ` · ${time(total)}` : ""} · {people}
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <button type="button" onClick={() => tracks[0] && play(current ?? tracks[0].id)} disabled={!tracks.length} className={btnPrimary}>
+            <button type="button" onClick={() => (current !== null ? np.toggle() : np.playFrom(queue))} disabled={!tracks.length} className={btnPrimary}>
               {playing ? `❚❚ ${m.common.pause}` : `▶ ${a.playAll}`}
             </button>
             {album.mine && (
@@ -258,45 +224,6 @@ export function AlbumView({ album: initial, initialTracks, isAdmin }: { album: C
             );
           })}
         </ol>
-      )}
-
-      {playingTrack && (
-        <div className={`${card} sticky bottom-4 flex items-center gap-3 p-3`}>
-          <button type="button" onClick={() => step(-1)} aria-label={a.previous} className={iconButton}>
-            ⏮
-          </button>
-          <button
-            type="button"
-            onClick={() => play(playingTrack.id)}
-            aria-label={playing ? m.common.pause : m.common.play}
-            className="grid h-10 w-10 flex-none place-items-center rounded-full bg-brand text-sm text-white shadow-glow"
-          >
-            {playing ? "❚❚" : "▶"}
-          </button>
-          <button type="button" onClick={() => step(1)} aria-label={a.next} className={iconButton}>
-            ⏭
-          </button>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">
-              {playingTrack.title ?? m.common.untitled} <span className="text-subtle">· {playingTrack.username}</span>
-            </p>
-            <input
-              type="range"
-              min={0}
-              max={length || 0}
-              step={1}
-              value={Math.min(position, length || 0)}
-              onChange={(e) => {
-                if (audioRef.current) audioRef.current.currentTime = Number(e.target.value);
-              }}
-              aria-label={m.common.seek}
-              className="w-full accent-[var(--pink)]"
-            />
-          </div>
-          <span className="flex-none text-xs tabular-nums text-subtle">
-            {time(position)} / {length ? time(length) : "--:--"}
-          </span>
-        </div>
       )}
 
       {editing && (

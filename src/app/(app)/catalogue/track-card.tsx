@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { CatalogueTrack } from "@/lib/tracks";
-import { Player } from "@/components/player";
+import { TrackPlayer } from "@/components/player";
+import type { QueueTrack } from "@/components/now-playing";
 import { BIN_DAYS } from "@/lib/bin";
 import { LOCALE_INFO } from "@/lib/i18n/config";
 import { fmt, lookup, rich } from "@/lib/i18n/format";
@@ -114,7 +115,7 @@ export async function TrackCard({
         )}
 
         <div className="mt-auto flex flex-col gap-3 pt-2">
-          <Player src={`/api/media/${t.id}`} seed={t.id} duration={t.duration} />
+          <TrackPlayer track={queueTrack(t, m.common.untitled)} />
           <div className="flex flex-wrap items-center gap-2">
             {canRemix && (
               <Link href={`/generate?remix=${t.id}`} className={btnSecondary}>
@@ -156,6 +157,19 @@ export async function TrackCard({
       </div>
     </article>
   );
+}
+
+/** A catalogue song as the app-wide player sees it. */
+export function queueTrack(t: CatalogueTrack, untitled: string): QueueTrack {
+  return {
+    id: t.id,
+    title: t.title ?? untitled,
+    artist: t.username,
+    audioUrl: `/api/media/${t.id}`,
+    coverUrl: t.image_path || t.source_image_url ? `/api/media/${t.id}/cover${coverVersion(t.image_path)}` : null,
+    duration: t.duration,
+    href: "/catalogue",
+  };
 }
 
 function RemixIcon() {

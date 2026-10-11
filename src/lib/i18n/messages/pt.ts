@@ -294,6 +294,12 @@ export const pt: Messages = {
       forbidden: "Só admins podem compartilhar com todos.",
     },
   },
+  player: {
+    label: "Tocando agora",
+    previous: "Anterior",
+    next: "Próxima",
+    close: "Parar e fechar o player",
+  },
   catalogue: {
     heading: "O catálogo",
     matching: { one: "{n} faixa encontrada", other: "{n} faixas encontradas" },

@@ -1,6 +1,6 @@
 import { requireUser } from "@/lib/auth";
 import { AppHeader } from "@/components/app-header";
-import { SinglePlayback } from "@/components/single-playback";
+import { NowPlayingBar } from "@/components/now-playing";
 import { getI18n } from "@/lib/i18n/server";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
@@ -16,7 +16,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       <footer className="mx-auto w-full max-w-6xl px-4 pb-8 pt-4 text-xs text-subtle">
         {m.nav.footer}
       </footer>
-      <SinglePlayback />
+      <NowPlayingBar className="sticky bottom-0" />
     </div>
   );
 }

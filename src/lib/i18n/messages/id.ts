@@ -293,6 +293,12 @@ export const id: Messages = {
       forbidden: "Hanya admin yang bisa membagikan ke semua.",
     },
   },
+  player: {
+    label: "Sedang diputar",
+    previous: "Sebelumnya",
+    next: "Berikutnya",
+    close: "Hentikan dan tutup pemutar",
+  },
   catalogue: {
     heading: "Katalog",
     matching: { one: "{n} lagu cocok", other: "{n} lagu cocok" },

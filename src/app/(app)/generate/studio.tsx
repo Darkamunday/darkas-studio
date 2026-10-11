@@ -5,7 +5,8 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import type { ClientGeneration } from "@/lib/serialize";
 import { MODELS, MODEL_LABELS, SIMPLE_PROMPT_MAX, TITLE_MAX, limitsFor, type SunoModel } from "@/lib/models";
 import { Equalizer } from "@/components/equalizer";
-import { Player } from "@/components/player";
+import { TrackPlayer } from "@/components/player";
+import { QueueScope, type QueueTrack } from "@/components/now-playing";
 import { btnGhost, btnPrimary, card, chip, input, label } from "@/components/ui";
 import { fmt, lookup } from "@/lib/i18n/format";
 import { useI18n } from "@/lib/i18n/client";
@@ -575,6 +576,12 @@ function GenerationProgress({ id }: { id: number }) {
 
   const failed = gen?.status === "failed";
   const done = gen?.status === "complete";
+  // The takes that can be played, for the app-wide player.
+  const takes: QueueTrack[] = (gen?.tracks ?? []).flatMap((t, i) =>
+    t.audioUrl
+      ? [{ id: t.id, title: t.title ?? m.common.untitled, artist: fmt(m.generate.take, { n: i + 1 }), audioUrl: t.audioUrl, coverUrl: t.coverUrl, duration: t.duration, href: "/generate" }]
+      : [],
+  );
   const stageIndex = gen ? Math.max(0, STAGES.findIndex((s) => (s.key as readonly string[]).includes(gen.status))) : 0;
   const elapsed = useElapsed(gen?.createdAt, !done && !failed);
   // Honest-ish progress: stage-based, creeping forward with time, never "done" until it is.
@@ -611,24 +618,31 @@ function GenerationProgress({ id }: { id: number }) {
       )}
 
       {gen && gen.tracks.length > 0 && (
-        <ul className="grid gap-3 p-5 sm:grid-cols-2">
-          {gen.tracks.map((t, i) => (
-            <li key={t.id} className="flex animate-pop gap-3 rounded-2xl border border-line bg-surface-2 p-3">
-              {t.coverUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={t.coverUrl} alt="" className="h-[72px] w-[72px] flex-none rounded-xl object-cover" />
-              ) : (
-                <div className="h-[72px] w-[72px] flex-none rounded-xl bg-brand opacity-40" />
-              )}
-              <div className="flex min-w-0 flex-1 flex-col justify-between gap-1">
-                <p className="truncate text-sm font-semibold">
-                  {t.title ?? m.common.untitled} <span className="font-normal text-subtle">· {fmt(m.generate.take, { n: i + 1 })}</span>
-                </p>
-                {t.audioUrl ? <Player src={t.audioUrl} seed={t.id} duration={t.duration} compact /> : <div className="skeleton h-8 rounded-lg" />}
-              </div>
-            </li>
-          ))}
-        </ul>
+        // A new song's takes play one after the other.
+        <QueueScope tracks={takes}>
+          <ul className="grid gap-3 p-5 sm:grid-cols-2">
+            {gen.tracks.map((t, i) => (
+              <li key={t.id} className="flex animate-pop gap-3 rounded-2xl border border-line bg-surface-2 p-3">
+                {t.coverUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={t.coverUrl} alt="" className="h-[72px] w-[72px] flex-none rounded-xl object-cover" />
+                ) : (
+                  <div className="h-[72px] w-[72px] flex-none rounded-xl bg-brand opacity-40" />
+                )}
+                <div className="flex min-w-0 flex-1 flex-col justify-between gap-1">
+                  <p className="truncate text-sm font-semibold">
+                    {t.title ?? m.common.untitled} <span className="font-normal text-subtle">· {fmt(m.generate.take, { n: i + 1 })}</span>
+                  </p>
+                  {t.audioUrl ? (
+                    <TrackPlayer track={takes.find((x) => x.id === t.id)!} compact />
+                  ) : (
+                    <div className="skeleton h-8 rounded-lg" />
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </QueueScope>
       )}
 
       {done && (

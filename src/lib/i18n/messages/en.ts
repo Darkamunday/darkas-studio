@@ -296,6 +296,12 @@ export const en = {
       forbidden: "Only admins can share with everyone.",
     },
   },
+  player: {
+    label: "Now playing",
+    previous: "Previous",
+    next: "Next",
+    close: "Stop and close the player",
+  },
   catalogue: {
     heading: "The catalogue",
     matching: { one: "{n} track matching", other: "{n} tracks matching" },

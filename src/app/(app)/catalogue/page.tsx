@@ -9,7 +9,8 @@ import { Equalizer } from "@/components/equalizer";
 import { btnPrimary, card } from "@/components/ui";
 import { FilterBar } from "./filter-bar";
 import { PendingRefresher } from "./pending-refresher";
-import { TrackCard } from "./track-card";
+import { TrackCard, queueTrack } from "./track-card";
+import { QueueScope } from "@/components/now-playing";
 import { getI18n } from "@/lib/i18n/server";
 import { fmt, plural, rich } from "@/lib/i18n/format";
 
@@ -90,19 +91,22 @@ export default async function CataloguePage({ searchParams }: PageProps<"/catalo
           </Link>
         </div>
       ) : (
-        <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {tracks.map((t) => (
-            <TrackCard
-              key={t.id}
-              track={t}
-              canDelete={canDeleteTrack(user, t.owner_id)}
-              isOwner={t.owner_id === user.id}
-              shareUrl={t.share_token ? `${base}/s/${t.share_token}` : null}
-              canRemix={canRemix(user, t)}
-              isAdmin={user.is_admin === 1}
-            />
-          ))}
-        </section>
+        // Pressing play on a song plays on down the list.
+        <QueueScope tracks={tracks.map((t) => queueTrack(t, m.common.untitled))}>
+          <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {tracks.map((t) => (
+              <TrackCard
+                key={t.id}
+                track={t}
+                canDelete={canDeleteTrack(user, t.owner_id)}
+                isOwner={t.owner_id === user.id}
+                shareUrl={t.share_token ? `${base}/s/${t.share_token}` : null}
+                canRemix={canRemix(user, t)}
+                isAdmin={user.is_admin === 1}
+              />
+            ))}
+          </section>
+        </QueueScope>
       )}
     </div>
   );

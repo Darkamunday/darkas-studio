@@ -294,6 +294,12 @@ export const ms: Messages = {
       forbidden: "Hanya admin boleh berkongsi dengan semua.",
     },
   },
+  player: {
+    label: "Sedang dimainkan",
+    previous: "Sebelumnya",
+    next: "Seterusnya",
+    close: "Henti dan tutup pemain",
+  },
   catalogue: {
     heading: "Katalog",
     matching: { one: "{n} lagu sepadan", other: "{n} lagu sepadan" },
