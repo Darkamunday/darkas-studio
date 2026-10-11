@@ -7,7 +7,7 @@ import { LOCALE_INFO } from "@/lib/i18n/config";
 import { fmt, lookup } from "@/lib/i18n/format";
 import { CREDITS_PER_GENERATION } from "../credits";
 import { Stat, StatusDot } from "../ui";
-import { backupStatus } from "@/lib/backups";
+import { backupStatus, offsiteStatus } from "@/lib/backups";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: (await getI18n()).m.meta.admin };
@@ -38,6 +38,7 @@ export default async function AdminOverviewPage() {
   const [credits, totals, recent] = [await fetchCredits(), usageTotals(), recentGenerations()];
   const backup = backupStatus();
   const backupStale = backup.stale;
+  const offsite = offsiteStatus();
 
   return (
     <div className="flex flex-col gap-8">
@@ -66,6 +67,19 @@ export default async function AdminOverviewPage() {
             ? a.backupStale
             : fmt(a.backupOk, { date: dateTimeFmt.format(new Date(backup.latest * 1000)), n: backup.count })}
       </p>
+      {offsite && (
+        <p className={`-mt-7 flex items-center gap-2 text-xs ${offsite.stale ? "text-danger" : "text-subtle"}`}>
+          <span aria-hidden className={`h-1.5 w-1.5 rounded-full ${offsite.stale ? "bg-danger" : "bg-success"}`} />
+          {!offsite.ok
+            ? fmt(a.offsiteFailed, { date: dateTimeFmt.format(new Date(offsite.at * 1000)) })
+            : offsite.stale
+              ? a.offsiteStale
+              : fmt(a.offsiteOk, {
+                  date: dateTimeFmt.format(new Date(offsite.at * 1000)),
+                  size: offsite.bytes === null ? "?" : `${(offsite.bytes / 1e9).toLocaleString(tag, { maximumFractionDigits: 2 })} GB`,
+                })}
+        </p>
+      )}
 
       {/* ---- recent activity ---- */}
       <section className="min-w-0 rounded-3xl border border-line bg-surface shadow-card p-6">

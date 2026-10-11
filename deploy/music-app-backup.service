@@ -1,11 +1,16 @@
-# Nightly database backup for Darka's Studio. Started by music-app-backup.timer.
+# Nightly backups for Darka's Studio. Started by music-app-backup.timer. First the database (backup.mjs),
+# then an off-site copy of all media and those database backups to Google Drive (offsite-backup.mjs).
+# The "-" lets the off-site copy run even if the database backup fails; each reports to the Admin page.
 # Install: cp deploy/music-app-backup.* /etc/systemd/system/ && systemctl daemon-reload \
 #          && systemctl enable --now music-app-backup.timer
 [Unit]
-Description=Darka's Studio database backup
+Description=Darka's Studio nightly backups (database, then Google Drive)
 
 [Service]
 Type=oneshot
 WorkingDirectory=/opt/music-app
-ExecStart=/usr/bin/node deploy/backup.mjs
+ExecStart=-/usr/bin/node deploy/backup.mjs
+ExecStart=/usr/bin/node deploy/offsite-backup.mjs
+# The first off-site run uploads everything; later runs only send what changed.
+TimeoutStartSec=2h
 User=root

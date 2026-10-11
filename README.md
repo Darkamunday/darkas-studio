@@ -81,7 +81,20 @@ the database), keeping 14 days (`BACKUP_DIR` and `BACKUP_KEEP_DAYS` override). T
 when the last one ran. Run one now with `systemctl start music-app-backup`; logs:
 `journalctl -u music-app-backup`. To restore: `systemctl stop music-app`, then
 `gunzip -c $MEDIA_DIR/backups/app-….db.gz > data/app.db`, remove `data/app.db-wal` and `data/app.db-shm`,
-and `systemctl start music-app`. Media files aren't included — they're already on the data disk.
+and `systemctl start music-app`.
+
+**Off-site copy (Google Drive).** Straight after that, the same service runs `deploy/offsite-backup.mjs`,
+which mirrors all of `$MEDIA_DIR` — songs, covers, chat pictures and uploads, album pictures, and the
+database backups above — to Google Drive with rclone. On Drive, `Darka's Studio backup/current/` is the
+mirror (only changes are uploaded each night) and `removed/YYYY-MM-DD/` holds files deleted or replaced
+that night, kept 30 days (`OFFSITE_REMOTE` and `OFFSITE_KEEP_DAYS` override). It refuses to run if the
+media folder is missing or empty, and stops if more than 500 files would be deleted at once. The Admin
+overview shows the last run, in red if it failed or is over 36h old. The rclone remote `gdrive` (in
+`/root/.config/rclone/rclone.conf`) uses Drive's `drive.file` permission, so it only sees files it made;
+to reconnect it, run `rclone config reconnect gdrive:` (or `rclone authorize drive` on a machine with a
+browser). To restore the media: `rclone copy "gdrive:Darka's Studio backup/current" $MEDIA_DIR`, then
+restore the newest database backup from `$MEDIA_DIR/backups` as above. To get back something deleted
+recently, look in `removed/` for the night it went.
 
 Deleting a song moves it to the `deleted_tracks` table (files kept) for 30 days, then it's purged
 with its files. People restore their own deletions from **Recently deleted** (linked from the
