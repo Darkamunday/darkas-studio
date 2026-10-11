@@ -722,7 +722,9 @@ export function ChatApp({
         </div>
 
         <div className="relative flex min-h-0 flex-1 flex-col">
-          <div ref={scrollRef} onScroll={onScroll} {...letGo} className="min-h-0 flex-1 overflow-y-auto">
+          {/* relative: hidden screen-reader labels inside are placed within this scroller; otherwise they sit
+              far down the page in long chats and make the whole page scroll. */}
+          <div ref={scrollRef} onScroll={onScroll} {...letGo} className="relative min-h-0 flex-1 overflow-y-auto">
             {chat.messages.length === 0 ? (
               <EmptyState onPick={pickSuggestion} />
             ) : (

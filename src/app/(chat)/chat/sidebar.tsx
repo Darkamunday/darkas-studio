@@ -112,7 +112,7 @@ export function Sidebar({
         )}
       </div>
 
-      <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
+      <nav className="relative min-h-0 flex-1 overflow-y-auto px-2 pb-3">
         {project ? (
           <div className="mb-3">
             <Link
