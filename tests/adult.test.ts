@@ -141,6 +141,7 @@ test("tool calls: turns are converted to OpenAI's format with matching ids", () 
   assert.deepEqual(calls.map((c) => c.function.name), ["a", "b", "c"]);
   assert.equal(calls[0].function.arguments, '{"x":1}');
   assert.deepEqual(results.map((r) => r.tool_call_id), calls.map((c) => c.id), "each result points at its call");
+  for (const c of calls) assert.match(c.id, /^[a-zA-Z0-9]{9}$/, "ids must be exactly 9 letters/digits (Mistral's rule)");
   assert.equal(results.length, 3, "a result with no call is dropped");
 });
 

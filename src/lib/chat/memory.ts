@@ -154,7 +154,8 @@ export async function noticeMemories(
         `The person's latest message:\n${message.slice(0, 4000)}`,
       EXTRACT_SCHEMA,
     );
-    parsed = JSON.parse(raw);
+    // Models sometimes wrap the JSON in a ```json code block despite being asked for JSON only.
+    parsed = JSON.parse(raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, ""));
   } catch (err) {
     console.error("[memory] noticing failed", err);
     return [];

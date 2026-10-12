@@ -69,6 +69,8 @@ test("noticing what to remember applies saves and forgets, and never throws", as
   assert.deepEqual(changes.map((c) => `${c.action}:${c.memory.content}`), ["forgotten:Prefers American spelling.", "saved:Prefers British spelling."]);
   assert.ok(K.getMemory(b, theirs.memory.id), "can't forget someone else's memory");
   assert.deepEqual(await K.noticeMemories(a, "hello", null, async () => "not json"), []);
+  const fenced = await K.noticeMemories(a, "I play bass in a test band.", null, async () => '```json\n{"save": ["Plays bass in a test band."], "forget": []}\n```');
+  assert.deepEqual(fenced.map((c) => c.memory.content), ["Plays bass in a test band."], "a ```json block is read too");
   assert.deepEqual(await K.noticeMemories(a, "hello", null, async () => { throw new Error("model down"); }), []);
 });
 

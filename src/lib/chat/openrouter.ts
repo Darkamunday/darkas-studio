@@ -19,6 +19,7 @@ type OpenAIMessage =
 /**
  * Our turns in OpenAI's format. Tool calls need ids that tool results point back to; ours have none, so
  * each call gets one here and the results that follow (always in the same order) are matched to them.
+ * Ids are exactly 9 letters and digits: some providers (Mistral's, via Venice) reject anything else.
  */
 export function toMessages(turns: ChatTurn[]): OpenAIMessage[] {
   const waiting: string[] = [];
@@ -31,7 +32,7 @@ export function toMessages(turns: ChatTurn[]): OpenAIMessage[] {
     }
     if (t.role === "assistant" && t.tool_calls?.length) {
       const calls = t.tool_calls.map((c) => {
-        const id = `call_${++n}`;
+        const id = `c${String(++n).padStart(8, "0")}`;
         waiting.push(id);
         return { id, type: "function" as const, function: { name: c.function.name, arguments: JSON.stringify(c.function.arguments ?? {}) } };
       });
