@@ -29,13 +29,13 @@ Reply with the JSON only.`;
 
 type Row = { id: number; role: string; content: string; song_draft: string | null; conversation_id: number };
 
-/** The assistant reply `messageId`, if it's in one of this person's chats. */
+/** The assistant reply `messageId`, if it's in one of this person's chats (never an adult chat: drafts are made on Ollama). */
 function ownReply(userId: number, messageId: number): Row | undefined {
   return db
     .prepare(
       `SELECT m.id, m.role, m.content, m.song_draft, m.conversation_id
          FROM messages m JOIN conversations c ON c.id = m.conversation_id
-        WHERE m.id = ? AND c.user_id = ? AND m.role = 'assistant'`,
+        WHERE m.id = ? AND c.user_id = ? AND m.role = 'assistant' AND c.adult = 0`,
     )
     .get(messageId, userId) as Row | undefined;
 }

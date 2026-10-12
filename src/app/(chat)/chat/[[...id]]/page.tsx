@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { capFor, hasChatAccess, sentToday } from "@/lib/chat/access";
 import { cookies } from "next/headers";
-import { CHAT_MODEL_COOKIE, CHAT_THINK_COOKIE, DEFAULT_MODEL, allowedModel } from "@/config/chat";
+import { ADULT_MODELS, CHAT_MODEL_COOKIE, CHAT_THINK_COOKIE, DEFAULT_MODEL, allowedModel, findAdultModel } from "@/config/chat";
+import { adultAccess } from "@/lib/chat/adult";
 import { getConversation, getInstructions, listConversations, listMessages } from "@/lib/chat/store";
 import { attachedFileIds, listFiles, toClientFile } from "@/lib/chat/files";
 import { getProject, listProjects, toClientProject } from "@/lib/chat/projects";
@@ -49,12 +50,16 @@ export default async function ChatPage({ params, searchParams }: PageProps<"/cha
   let model = allowedModel(jar.get(CHAT_MODEL_COOKIE)?.value, isAdmin)?.id ?? DEFAULT_MODEL;
   let think = jar.get(CHAT_THINK_COOKIE)?.value !== "0";
   let projectId: number | null = null;
+  let adult = false;
   if (segments) {
     id = Number(segments[0]);
     const conversation = segments.length === 1 && Number.isInteger(id) ? getConversation(user.id, id) : undefined;
     if (!conversation) redirect("/chat");
+    adult = !!conversation.adult;
     // A model since removed from the config, or now admin-only, shows (and is answered by) the default.
-    model = allowedModel(conversation.model, isAdmin)?.id ?? DEFAULT_MODEL;
+    model = adult
+      ? (findAdultModel(conversation.model) ?? ADULT_MODELS[0]).id
+      : (allowedModel(conversation.model, isAdmin)?.id ?? DEFAULT_MODEL);
     projectId = conversation.project_id;
   } else {
     // A new chat in a project starts on the project's model and Think setting, where it has them.
@@ -68,11 +73,12 @@ export default async function ChatPage({ params, searchParams }: PageProps<"/cha
     }
   }
 
-  const conversations = listConversations(user.id).map(({ id, title, updated_at, project_id }) => ({
+  const conversations = listConversations(user.id).map(({ id, title, updated_at, project_id, adult }) => ({
     id,
     title,
     updated_at,
     project_id,
+    adult: !!adult,
   }));
   const images = id ? listImages(user.id, id) : [];
   const toolCalls = id ? listToolCalls(user.id, id) : [];
@@ -115,6 +121,8 @@ export default async function ChatPage({ params, searchParams }: PageProps<"/cha
       imageAccess={hasImageAccess(user.id)}
       initialImagePrefs={imagePrefs(jar.get(IMAGE_PREFS_COOKIE)?.value, isAdmin)}
       memoryAvailable={memoryOnForApp()}
+      adultAccess={adultAccess(user.id)}
+      initialAdult={adult}
       isAdmin={isAdmin}
     />
   );

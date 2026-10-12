@@ -552,6 +552,16 @@ const MIGRATIONS: string[] = [
   CREATE INDEX album_pictures_album ON album_pictures(album_id, position);
   CREATE INDEX album_pictures_source ON album_pictures(source_image_id);
   `,
+  // 27: adult (18+) chats, on OpenRouter instead of Ollama Cloud. Off per person until an admin switches
+  // it on (adult_enabled); the person also confirms they're 18+ once (adult_confirmed_at). A chat is
+  // adult from its first message and stays so (conversations.adult). Pictures from adult chats are
+  // marked in albums (album_pictures.adult) and only ever shown to the person who added them.
+  `
+  ALTER TABLE users ADD COLUMN adult_enabled INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE users ADD COLUMN adult_confirmed_at INTEGER;
+  ALTER TABLE conversations ADD COLUMN adult INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE album_pictures ADD COLUMN adult INTEGER NOT NULL DEFAULT 0;
+  `,
 ];
 
 function open(): DatabaseSync {

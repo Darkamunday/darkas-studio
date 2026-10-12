@@ -36,6 +36,7 @@ type Request = {
   conversationId?: number;
   content?: string;
   imageIds?: number[];
+  adult?: boolean;
   regenerate?: true;
   model?: string;
   think?: boolean;
@@ -56,6 +57,8 @@ export type SendOptions = {
   image?: ImagePrefs;
   /** Pictures attached to this message. */
   pictures?: ClientUpload[];
+  /** Start the chat as an adult (18+) chat (first message only). */
+  adult?: boolean;
 };
 
 type Handlers = {
@@ -199,7 +202,7 @@ export function useChatStream(initial: UiMessage[], conversationId: number | nul
   }, []);
 
   const send = useCallback(
-    (content: string, { model, think, fileIds, projectId, skillIds, image, pictures }: SendOptions = {}) => {
+    (content: string, { model, think, fileIds, projectId, skillIds, image, pictures, adult }: SendOptions = {}) => {
       const userKey = newKey();
       const before = messagesRef.current;
       setMessages((list) => [
@@ -217,7 +220,8 @@ export function useChatStream(initial: UiMessage[], conversationId: number | nul
           model,
           think,
           fileIds: first && fileIds?.length ? fileIds : undefined,
-          projectId: first && projectId ? projectId : undefined,
+          projectId: first && projectId && !adult ? projectId : undefined,
+          adult: first && adult ? true : undefined,
           skillIds: first && skillIds?.length ? skillIds : undefined,
           image,
         },

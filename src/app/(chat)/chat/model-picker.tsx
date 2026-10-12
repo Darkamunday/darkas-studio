@@ -1,7 +1,7 @@
 "use client";
 
 import { useI18n } from "@/lib/i18n/client";
-import { modelsFor } from "@/config/chat";
+import { ADULT_MODELS, modelsFor } from "@/config/chat";
 
 /** Admins also see the admin-only (pricier) models, marked as such. */
 export function ModelPicker({
@@ -9,11 +9,14 @@ export function ModelPicker({
   onChange,
   disabled,
   isAdmin,
+  adult = false,
 }: {
   value: string;
   onChange: (id: string) => void;
   disabled?: boolean;
   isAdmin: boolean;
+  /** An adult (18+) chat: offers the adult models (on OpenRouter) instead. */
+  adult?: boolean;
 }) {
   const { m } = useI18n();
   return (
@@ -26,7 +29,7 @@ export function ModelPicker({
         title={m.chat.model}
         className="cursor-pointer appearance-none rounded-xl border border-line bg-surface py-1.5 pl-3 pr-8 text-sm text-fg transition hover:border-line-strong focus:border-pink focus:outline-none focus:ring-4 focus:ring-pink/15 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {modelsFor(isAdmin).map((model) => (
+        {(adult ? ADULT_MODELS : modelsFor(isAdmin)).map((model) => (
           <option key={model.id} value={model.id}>
             {model.adminOnly ? `${model.label} · ${m.chat.adminOnlyModel}` : model.label}
           </option>

@@ -22,8 +22,9 @@ export type ChatTurn = { role: ChatRole | "tool"; content: string; tool_calls?: 
 export type ToolDef = { type: "function"; function: { name: string; description: string; parameters: object } };
 
 /** Keys into the `chat.errors` messages. */
-export type OllamaErrorReason = "not_configured" | "bad_key" | "busy" | "model" | "generic";
+export type OllamaErrorReason = "not_configured" | "bad_key" | "busy" | "model" | "no_credit" | "generic";
 
+/** A failed model call (from Ollama Cloud or OpenRouter — the reasons are shared). */
 export class OllamaError extends Error {
   constructor(
     public reason: OllamaErrorReason,

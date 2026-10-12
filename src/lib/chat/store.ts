@@ -11,6 +11,8 @@ export type Conversation = {
   model: string;
   /** The project it belongs to, if any. */
   project_id: number | null;
+  /** 1 for an adult (18+) chat: runs on OpenRouter, never in a project, never remembered. */
+  adult: number;
   created_at: number;
   updated_at: number;
 };
@@ -28,7 +30,7 @@ export type ChatMessage = {
 export function listConversations(userId: number): Conversation[] {
   return db
     .prepare(
-      `SELECT id, title, model, project_id, created_at, updated_at FROM conversations
+      `SELECT id, title, model, project_id, adult, created_at, updated_at FROM conversations
         WHERE user_id = ? ORDER BY updated_at DESC, id DESC`,
     )
     .all(userId) as Conversation[];
@@ -36,15 +38,15 @@ export function listConversations(userId: number): Conversation[] {
 
 export function getConversation(userId: number, id: number): Conversation | undefined {
   return db
-    .prepare("SELECT id, title, model, project_id, created_at, updated_at FROM conversations WHERE id = ? AND user_id = ?")
+    .prepare("SELECT id, title, model, project_id, adult, created_at, updated_at FROM conversations WHERE id = ? AND user_id = ?")
     .get(id, userId) as Conversation | undefined;
 }
 
-/** `projectId` must already be checked as this person's. */
-export function createConversation(userId: number, model: string, projectId: number | null = null): number {
+/** `projectId` must already be checked as this person's; adult chats are never in a project. */
+export function createConversation(userId: number, model: string, projectId: number | null = null, adult = false): number {
   const res = db
-    .prepare("INSERT INTO conversations (user_id, model, project_id) VALUES (?, ?, ?)")
-    .run(userId, model, projectId);
+    .prepare("INSERT INTO conversations (user_id, model, project_id, adult) VALUES (?, ?, ?, ?)")
+    .run(userId, model, adult ? null : projectId, adult ? 1 : 0);
   return Number(res.lastInsertRowid);
 }
 

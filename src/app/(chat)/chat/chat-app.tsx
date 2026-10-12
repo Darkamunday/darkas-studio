@@ -20,7 +20,15 @@ import type { ClientImage } from "@/lib/chat/images";
 import type { ClientSkill } from "@/lib/chat/skills";
 import type { ClientProject } from "@/lib/chat/projects";
 import type { ClientFile } from "@/lib/chat/files";
-import { CHAT_MODEL_COOKIE, CHAT_THINK_COOKIE, MAX_IMAGES_PER_MESSAGE, MAX_REPLY_TOKENS, findChatModel } from "@/config/chat";
+import {
+  ADULT_MODELS,
+  CHAT_MODEL_COOKIE,
+  CHAT_THINK_COOKIE,
+  DEFAULT_MODEL,
+  MAX_IMAGES_PER_MESSAGE,
+  MAX_REPLY_TOKENS,
+  findAnyModel,
+} from "@/config/chat";
 import type { ClientUpload } from "@/lib/chat/uploads";
 import { newKey, useChatStream, type UiMessage } from "./use-chat-stream";
 
@@ -42,6 +50,8 @@ export function ChatApp({
   imageAccess,
   initialImagePrefs,
   memoryAvailable,
+  adultAccess: initialAdultAccess,
+  initialAdult,
   isAdmin,
 }: {
   initialConversations: SidebarConversation[];
@@ -69,6 +79,10 @@ export function ChatApp({
   initialImagePrefs: ImagePrefs;
   /** Memory is switched on for the app (admins can turn it off). */
   memoryAvailable: boolean;
+  /** Adult (18+) chats: "off" (not switched on for this person), "confirm" (still to confirm 18+), or "on". */
+  adultAccess: "off" | "confirm" | "on";
+  /** This chat is an adult chat. */
+  initialAdult: boolean;
   isAdmin: boolean;
 }) {
   const { locale, m } = useI18n();
@@ -80,7 +94,7 @@ export function ChatApp({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [model, setModel] = useState(initialModel);
   const [think, setThink] = useState(initialThink);
-  const canThink = !!findChatModel(model)?.thinking;
+  const canThink = !!findAnyModel(model)?.thinking;
   const [usage, setUsage] = useState(initialUsage);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [instructions, setInstructions] = useState(initialInstructions);
@@ -102,6 +116,11 @@ export function ChatApp({
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [dropping, setDropping] = useState(false);
   const [memoryOpen, setMemoryOpen] = useState(false);
+  // Adult (18+) mode: fixed for a chat once it exists; switchable for a new one (not in a project).
+  const [adult, setAdult] = useState(initialAdult);
+  const [adultAccess, setAdultAccess] = useState(initialAdultAccess);
+  const [confirmingAdult, setConfirmingAdult] = useState(false);
+  const lastNormalModel = useRef(initialAdult ? DEFAULT_MODEL : initialModel);
   const pinnedRef = useRef(pinnedSkills);
   const [imagePrefs, setImagePrefs] = useState(initialImagePrefs);
   const [imageOpen, setImageOpen] = useState(false);
@@ -123,6 +142,8 @@ export function ChatApp({
 
   function pickModel(id: string) {
     setModel(id);
+    // Adult models aren't remembered as the default for new (ordinary) chats.
+    if (adult) return;
     // New chats start on the model this browser picked last (read by the page on the server).
     document.cookie = `${CHAT_MODEL_COOKIE}=${encodeURIComponent(id)}; path=/; max-age=31536000; samesite=lax`;
   }
@@ -266,8 +287,8 @@ export function ChatApp({
     const content = draft.trim();
     const sending = attachments.filter((a) => a.kind === "picture" && a.status === "ready");
     if (!content && !sending.length) return;
-    if (sending.length && !findChatModel(model)?.vision) {
-      return setError(fmt(m.chat.errors.no_vision, { model: findChatModel(model)?.label ?? model }));
+    if (sending.length && !findAnyModel(model)?.vision) {
+      return setError(fmt(m.chat.errors.no_vision, { model: findAnyModel(model)?.label ?? model }));
     }
     const pictures: ClientUpload[] = sending.map((a) => ({ id: a.uploadId!, messageId: null, url: `/api/chat/uploads/${a.uploadId}` }));
     setError(null);
@@ -283,6 +304,7 @@ export function ChatApp({
       skillIds: [...pinnedRef.current],
       image: imagePrefs,
       pictures,
+      adult,
     });
     if (accepted) sending.forEach((a) => a.preview && URL.revokeObjectURL(a.preview));
     else {
@@ -299,8 +321,8 @@ export function ChatApp({
     const documents = picked.filter((f) => !f.type.startsWith("image/"));
     const room = MAX_IMAGES_PER_MESSAGE - attachments.filter((a) => a.kind === "picture").length;
     if (pictures.length > room) setError(fmt(m.chat.errors.too_many_pictures, { n: MAX_IMAGES_PER_MESSAGE }));
-    if (pictures.length && !findChatModel(model)?.vision) {
-      setError(fmt(m.chat.errors.no_vision, { model: findChatModel(model)?.label ?? model }));
+    if (pictures.length && !findAnyModel(model)?.vision) {
+      setError(fmt(m.chat.errors.no_vision, { model: findAnyModel(model)?.label ?? model }));
     }
     await Promise.all([
       ...pictures.slice(0, Math.max(0, room)).map((f) => uploadPicture(f)),
@@ -397,6 +419,29 @@ export function ChatApp({
     setError((m.chat.errors as Record<string, string>)[reason] ?? m.chat.errors.song_failed);
   }
 
+  /** Switch a new chat into or out of adult (18+) mode, confirming 18+ the first time. */
+  function toggleAdult() {
+    if (adult) {
+      setAdult(false);
+      setModel(lastNormalModel.current);
+      return;
+    }
+    if (adultAccess === "confirm") return setConfirmingAdult(true);
+    lastNormalModel.current = model;
+    setAdult(true);
+    setModel(ADULT_MODELS[0].id);
+  }
+
+  async function confirmAdult() {
+    const res = await fetch("/api/chat/adult", { method: "POST" }).catch(() => null);
+    setConfirmingAdult(false);
+    if (!res?.ok) return setError(m.chat.errors.generic);
+    setAdultAccess("on");
+    lastNormalModel.current = model;
+    setAdult(true);
+    setModel(ADULT_MODELS[0].id);
+  }
+
   /** Take back a memory the assistant saved (Undo on its note). */
   async function undoMemory(memoryId: number) {
     const res = await fetch(`/api/chat/memories/${memoryId}`, { method: "DELETE" }).catch(() => null);
@@ -490,7 +535,7 @@ export function ChatApp({
         ? fmt(m.chat.capReached, { cap: usage.cap ?? 0 })
         : plural(locale, m.chat.left, left);
 
-  const activeModel = findChatModel(model);
+  const activeModel = findAnyModel(model);
   // File tokens that fit alongside a short conversation (matches the server's check).
   const fileWindow = (activeModel?.contextTokens ?? 32_000) - MAX_REPLY_TOKENS - 2_500;
   const projectFiles = new Set(project?.fileIds ?? []);
@@ -597,6 +642,7 @@ export function ChatApp({
         />
       )}
       {memoryOpen && <MemoryDialog onClose={() => setMemoryOpen(false)} />}
+      {confirmingAdult && <AdultConfirm onConfirm={() => void confirmAdult()} onCancel={() => setConfirmingAdult(false)} />}
       {imageOpen && <ImagePanel prefs={imagePrefs} isAdmin={isAdmin} onMake={(d, p) => void sendImage(d, p)} onClose={() => setImageOpen(false)} />}
       {skillsOpen && (
         <SkillsDialog
@@ -718,7 +764,23 @@ export function ChatApp({
               <span className="max-sm:sr-only">{m.chat.think}</span>
             </button>
           )}
-          <ModelPicker value={model} onChange={pickModel} disabled={chat.streaming} isAdmin={isAdmin} />
+          {(adult || (adultAccess !== "off" && activeId === null && projectId === null)) && (
+            <button
+              type="button"
+              onClick={toggleAdult}
+              // Once the chat exists its mode is fixed: the badge just shows it.
+              disabled={chat.streaming || activeId !== null}
+              role="switch"
+              aria-checked={adult}
+              title={adult ? m.chat.adultOn : m.chat.adultOff}
+              className={`inline-flex h-[34px] items-center gap-1 rounded-xl border px-2.5 text-sm font-semibold transition disabled:cursor-default ${
+                adult ? "border-danger/50 bg-danger/12 text-danger" : "border-line bg-surface text-subtle hover:border-line-strong hover:text-fg"
+              }`}
+            >
+              18+
+            </button>
+          )}
+          <ModelPicker value={model} onChange={pickModel} disabled={chat.streaming} isAdmin={isAdmin} adult={adult} />
         </div>
 
         <div className="relative flex min-h-0 flex-1 flex-col">
@@ -732,7 +794,8 @@ export function ChatApp({
                 messages={chat.messages}
                 streaming={chat.streaming}
                 onRegenerate={activeId !== null ? regenerate : undefined}
-                onMakeSong={chat.streaming ? undefined : makeSong}
+                // Song drafts are made on Ollama Cloud, so not from adult chats.
+                onMakeSong={chat.streaming || adult ? undefined : makeSong}
                 pinnedReplies={pinnedReplies}
                 onUndoMemory={(id) => void undoMemory(id)}
                 // Pinning is for shared projects: that's where the Shared tab is.
@@ -876,4 +939,38 @@ function EmptyState({ onPick }: { onPick: (text: string) => void }) {
 function notIn<T extends { id: number }>(items: T[], own: { id: number }[]): T[] {
   const ids = new Set(own.map((o) => o.id));
   return items.filter((x) => !ids.has(x.id));
+}
+
+/** The one-time 18+ confirmation before someone's first adult chat. */
+function AdultConfirm({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+  const { m } = useI18n();
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onCancel();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="adult-title">
+      <button type="button" aria-label={m.chat.adultCancel} onClick={onCancel} className="absolute inset-0 animate-fade-in bg-black/50 backdrop-blur-sm" />
+      <div className="relative w-full max-w-md animate-pop rounded-t-3xl border border-line bg-surface p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-card sm:rounded-3xl">
+        <h2 id="adult-title" className="text-lg font-semibold">
+          {m.chat.adultTitle}
+        </h2>
+        <p className="mt-3 text-sm text-muted">{m.chat.adultIntro}</p>
+        <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-muted">
+          <li>{m.chat.adultPoint1}</li>
+          <li>{m.chat.adultPoint2}</li>
+          <li>{m.chat.adultPoint3}</li>
+        </ul>
+        <div className="mt-6 flex justify-end gap-2">
+          <button type="button" onClick={onCancel} className="rounded-xl border border-line px-4 py-2 text-sm text-muted transition hover:border-line-strong hover:text-fg">
+            {m.chat.adultCancel}
+          </button>
+          <button type="button" onClick={onConfirm} className="rounded-xl bg-danger px-4 py-2 text-sm font-medium text-white transition hover:brightness-110">
+            {m.chat.adultConfirm}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }

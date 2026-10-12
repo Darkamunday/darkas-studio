@@ -58,6 +58,9 @@ migrations only ever add things, so older code keeps working with a newer databa
 | `COMFY_MOCK` | no | `1` fakes Comfy Cloud with placeholder images — for development only |
 | `OLLAMA_API_KEY` | no | Ollama Cloud API key (from ollama.com/settings/keys). Powers **Chat** (`/chat`), which admins switch on per user. Models, system prompt and the default daily cap are in `src/config/chat.ts`. |
 | `OLLAMA_BASE_URL` | no | Default: `https://ollama.com` |
+| `OPENROUTER_API_KEY` | no | OpenRouter API key (from openrouter.ai/keys). Turns on **adult (18+) chats**, which admins switch on per person and each person confirms once. They run only on OpenRouter (never Ollama Cloud), asking for providers that don't keep prompts; models and the fixed rules are `ADULT_MODELS` and `ADULT_RULES` in `src/config/chat.ts`. Hidden when unset. |
+| `OPENROUTER_BASE_URL` | no | Default: `https://openrouter.ai/api/v1` — only for testing against a stand-in server |
+| `OFFSITE_REMOTE`, `OFFSITE_KEEP_DAYS` | no | Off-site backup target and how long removed files are kept (see Data). Defaults: `gdrive:Darka's Studio backup`, `30` |
 
 ## Data
 

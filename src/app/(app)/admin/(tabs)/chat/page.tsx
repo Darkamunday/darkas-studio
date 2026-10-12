@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/auth";
 import { getMasterPrompt } from "@/lib/chat/master-prompt";
 import { chatUsageByUser, chatUsageTotals } from "@/lib/chat/usage";
-import { DEFAULT_DAILY_CAP, findChatModel } from "@/config/chat";
+import { DEFAULT_DAILY_CAP, findAnyModel } from "@/config/chat";
 import { spendByModel, spendByUser, spendTotals } from "@/lib/chat/spend";
 import { getI18n } from "@/lib/i18n/server";
 import { LOCALE_INFO } from "@/lib/i18n/config";
 import { fmt, plural } from "@/lib/i18n/format";
-import { setChatCap, setChatEnabled, setChatForAll, setChatMemory, setImageCap, setImageEnabled } from "../../actions";
+import { setAdultChat, setChatCap, setChatEnabled, setChatForAll, setChatMemory, setImageCap, setImageEnabled } from "../../actions";
+import { adultStatuses } from "@/lib/chat/adult";
+import { openRouterConfigured } from "@/lib/chat/openrouter";
 import { memoryCounts, memoryOnForApp } from "@/lib/chat/memory";
 import { comfyAccountMonthSpend, imageUsageByUser, reconcileUsage } from "@/lib/chat/images";
 import { DEFAULT_IMAGE_DAILY_CAP } from "@/config/images";
@@ -39,6 +41,8 @@ export default async function AdminChatPage() {
   const master = getMasterPrompt();
   const memoryOn = memoryOnForApp();
   const memories = memoryCounts();
+  const adult = adultStatuses();
+  const adultReady = openRouterConfigured();
   // Ask Comfy (together, never waiting more than 5s) what recent images used and the account's month so far.
   const within = <T,>(p: Promise<T>, fallback: T) => Promise.race([p, new Promise<T>((r) => setTimeout(() => r(fallback), 5000))]);
   const [, comfySpend] = await Promise.all([within(reconcileUsage().catch(() => {}), undefined), within(comfyAccountMonthSpend(), null)]);
@@ -85,7 +89,7 @@ export default async function AdminChatPage() {
                 </thead>
                 <tbody className="divide-y divide-line">
                   {byModel.map((row) => {
-                    const model = findChatModel(row.model);
+                    const model = findAnyModel(row.model);
                     return (
                       <tr key={row.model}>
                         <td className="py-2.5 pr-4">
@@ -354,6 +358,43 @@ export default async function AdminChatPage() {
               ))}
           </ul>
         )}
+      </section>
+
+      <section className="rounded-3xl border border-line bg-surface shadow-card p-6">
+        <h2 className="mb-1 text-lg font-semibold">{c.adultHeading}</h2>
+        <p className="text-sm text-muted">{c.adultBlurb}</p>
+        {!adultReady && <p className="mt-2 rounded-xl bg-warn/10 px-3 py-2 text-sm text-warn">{c.adultNoKey}</p>}
+        <ul className="mt-4 divide-y divide-line">
+          {chatUsers
+            .filter((u) => !u.disabled)
+            .map((u) => {
+              const s = adult.get(u.id) ?? { enabled: false, confirmedAt: null };
+              return (
+                <li key={u.id} className="flex items-center gap-3 py-2">
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium">{u.username}</span>
+                  {s.enabled && (
+                    <span className="text-xs text-subtle">
+                      {s.confirmedAt ? fmt(c.adultConfirmed, { date: dateTimeFmt.format(new Date(s.confirmedAt * 1000)) }) : c.adultNotConfirmed}
+                    </span>
+                  )}
+                  <form action={setAdultChat} className="flex items-center gap-2">
+                    <input type="hidden" name="userId" value={u.id} />
+                    <input type="hidden" name="enabled" value={s.enabled ? "0" : "1"} />
+                    <button
+                      role="switch"
+                      aria-checked={s.enabled}
+                      aria-label={`${c.adultHeading}: ${u.username}`}
+                      title={s.enabled ? c.turnOff : c.turnOn}
+                      className={`relative h-6 w-11 flex-none rounded-full transition ${s.enabled ? "bg-danger" : "bg-surface-3"}`}
+                    >
+                      <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${s.enabled ? "left-[22px]" : "left-0.5"}`} />
+                    </button>
+                    <span className={`w-6 text-xs ${s.enabled ? "text-danger" : "text-subtle"}`}>{s.enabled ? c.on : c.off}</span>
+                  </form>
+                </li>
+              );
+            })}
+        </ul>
       </section>
     </div>
   );

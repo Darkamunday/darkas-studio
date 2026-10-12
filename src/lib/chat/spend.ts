@@ -1,12 +1,12 @@
 import "server-only";
 import { db } from "../db";
-import { chatDay } from "./access";
-import { costOf, findChatModel } from "@/config/chat";
+import { chatDay } from "./day";
+import { costOf, findAnyModel } from "@/config/chat";
 import type { TokenUsage } from "./ollama";
 
 /** Add one request's tokens and cost to today's tally for this person and model. */
 export function recordSpend(userId: number, modelId: string, usage: TokenUsage, estimated = false) {
-  const model = findChatModel(modelId);
+  const model = findAnyModel(modelId);
   const cost = model ? costOf(model, usage.input, usage.output) : 0;
   db.prepare(
     `INSERT INTO chat_spend (user_id, day, model, requests, input_tokens, output_tokens, cost_usd, estimated)

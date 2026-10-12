@@ -94,14 +94,17 @@ function members(albumId: number): Person[] {
 }
 
 /** A picture album's cover (the one picked, else the first still picture) and how many it holds. */
-function pictureSummary(a: AlbumRow): { coverUrl: string | null; count: number } {
+function pictureSummary(userId: number, a: AlbumRow): { coverUrl: string | null; count: number } {
+  // Pictures from adult chats are only ever shown to whoever added them.
   const cover = db
     .prepare(
-      `SELECT id FROM album_pictures WHERE album_id = ? AND kind = 'image'
+      `SELECT id FROM album_pictures WHERE album_id = ? AND kind = 'image' AND (adult = 0 OR added_by = ?)
         ORDER BY id = ? DESC, position LIMIT 1`,
     )
-    .get(a.id, a.cover_picture_id ?? 0) as { id: number } | undefined;
-  const count = (db.prepare("SELECT COUNT(*) AS n FROM album_pictures WHERE album_id = ?").get(a.id) as { n: number }).n;
+    .get(a.id, userId, a.cover_picture_id ?? 0) as { id: number } | undefined;
+  const count = (
+    db.prepare("SELECT COUNT(*) AS n FROM album_pictures WHERE album_id = ? AND (adult = 0 OR added_by = ?)").get(a.id, userId) as { n: number }
+  ).n;
   return { coverUrl: cover ? `/api/albums/pictures/${cover.id}` : null, count };
 }
 
@@ -123,7 +126,7 @@ function toClient(userId: number, a: AlbumRow): ClientAlbum {
     updatedAt: a.updated_at,
   };
   if (a.kind === "pictures") {
-    const { coverUrl, count } = pictureSummary(a);
+    const { coverUrl, count } = pictureSummary(userId, a);
     return { ...base, itemCount: count, coverUrl };
   }
   // The cover: the one the owner picked, if this person can see it; otherwise the first song with art.

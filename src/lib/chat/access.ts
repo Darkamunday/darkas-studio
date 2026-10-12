@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "../db";
 import { getCurrentUser, type User } from "../auth";
 import { DEFAULT_DAILY_CAP } from "@/config/chat";
+import { chatDay } from "./day";
 
 // Chat is off per user until an admin turns it on. Every chat page and route checks here,
 // reading the user row fresh each time so admin changes apply on the next request.
@@ -27,10 +28,7 @@ export async function requireChatApi(): Promise<{ user: User; error?: never } | 
   return { user };
 }
 
-/** Today's date in Europe/London as YYYY-MM-DD — the day the daily cap resets on. */
-export function chatDay(now = new Date()): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(now);
-}
+export { chatDay } from "./day";
 
 /** The user's daily message cap, or null for no cap (admins). */
 export function capFor(userId: number): number | null {

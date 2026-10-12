@@ -8,7 +8,9 @@ import { ownRow, usableRow } from "./albums";
 // Picture albums: pictures and video made in chat, kept in albums (see albums.ts for sharing). Anyone in
 // an album can add things they made in their chats and remove what they added; the owner can remove
 // anything and reorder. Each album keeps its own copy of the file (a hard link where the disk allows),
-// so deleting the chat it came from doesn't take it out of the album.
+// so deleting the chat it came from doesn't take it out of the album. Pictures from adult (18+) chats can
+// only go in private albums, and are only ever shown to the person who added them (even if the album is
+// shared later).
 
 export const MAX_PICTURES_PER_ALBUM = 500;
 const PICTURE_DIR = path.join(MEDIA_DIR, "album-pictures");
@@ -37,9 +39,9 @@ export function albumPictures(userId: number, albumId: number): AlbumPicture[] |
       .prepare(
         `SELECT p.id, p.kind, p.prompt, p.added_by, u.username AS added_by_name, p.added_at
            FROM album_pictures p LEFT JOIN users u ON u.id = p.added_by
-          WHERE p.album_id = ? ORDER BY p.position, p.id`,
+          WHERE p.album_id = ? AND (p.adult = 0 OR p.added_by = ?) ORDER BY p.position, p.id`,
       )
-      .all(albumId) as Row[]
+      .all(albumId, userId) as Row[]
   ).map((r) => ({
     id: r.id,
     kind: r.kind,
@@ -53,21 +55,30 @@ export function albumPictures(userId: number, albumId: number): AlbumPicture[] |
 
 /** A picture's file, if this person can open its album. */
 export function pictureFile(userId: number, pictureId: number): { file_path: string; prompt: string } | undefined {
-  const row = db.prepare("SELECT album_id, file_path, prompt FROM album_pictures WHERE id = ?").get(pictureId) as
-    | { album_id: number; file_path: string; prompt: string }
+  const row = db.prepare("SELECT album_id, file_path, prompt, adult, added_by FROM album_pictures WHERE id = ?").get(pictureId) as
+    | { album_id: number; file_path: string; prompt: string; adult: number; added_by: number | null }
     | undefined;
-  return row && usableRow(userId, row.album_id) ? { file_path: row.file_path, prompt: row.prompt } : undefined;
+  if (!row || (row.adult && row.added_by !== userId)) return undefined;
+  return usableRow(userId, row.album_id) ? { file_path: row.file_path, prompt: row.prompt } : undefined;
 }
 
 export type AddPictureResult = "added" | "already" | "not_found" | "full";
 
 /** Put one of this person's chat pictures or videos into a picture album they can open (at the end). */
 export async function addPicture(userId: number, albumId: number, imageId: number): Promise<AddPictureResult> {
-  if (usableRow(userId, albumId)?.kind !== "pictures") return "not_found";
+  const album = usableRow(userId, albumId);
+  if (album?.kind !== "pictures") return "not_found";
   const image = db
-    .prepare("SELECT id, kind, prompt, file_path FROM chat_images WHERE id = ? AND user_id = ? AND status = 'ready' AND kind IN ('image', 'video')")
-    .get(imageId, userId) as { id: number; kind: "image" | "video"; prompt: string; file_path: string | null } | undefined;
+    .prepare(
+      `SELECT i.id, i.kind, i.prompt, i.file_path, c.adult FROM chat_images i JOIN conversations c ON c.id = i.conversation_id
+        WHERE i.id = ? AND i.user_id = ? AND i.status = 'ready' AND i.kind IN ('image', 'video')`,
+    )
+    .get(imageId, userId) as { id: number; kind: "image" | "video"; prompt: string; file_path: string | null; adult: number } | undefined;
   if (!image?.file_path) return "not_found";
+  // Adult pictures only go in your own private albums.
+  if (image.adult && (album.user_id !== userId || album.everyone || db.prepare("SELECT 1 FROM album_members WHERE album_id = ?").get(albumId))) {
+    return "not_found";
+  }
   if (db.prepare("SELECT 1 FROM album_pictures WHERE album_id = ? AND source_image_id = ?").get(albumId, imageId)) return "already";
   const { n } = db.prepare("SELECT COUNT(*) AS n FROM album_pictures WHERE album_id = ?").get(albumId) as { n: number };
   if (n >= MAX_PICTURES_PER_ALBUM) return "full";
@@ -78,10 +89,10 @@ export async function addPicture(userId: number, albumId: number, imageId: numbe
   const id = Number(
     db
       .prepare(
-        `INSERT INTO album_pictures (album_id, added_by, source_image_id, kind, prompt, file_path, position)
-         VALUES (?, ?, ?, ?, ?, '', (SELECT COALESCE(MAX(position), 0) + 1 FROM album_pictures WHERE album_id = ?))`,
+        `INSERT INTO album_pictures (album_id, added_by, source_image_id, kind, prompt, file_path, position, adult)
+         VALUES (?, ?, ?, ?, ?, '', (SELECT COALESCE(MAX(position), 0) + 1 FROM album_pictures WHERE album_id = ?), ?)`,
       )
-      .run(albumId, userId, imageId, image.kind, image.prompt, albumId).lastInsertRowid,
+      .run(albumId, userId, imageId, image.kind, image.prompt, albumId, image.adult).lastInsertRowid,
   );
   const rel = path.relative(MEDIA_DIR, path.join(PICTURE_DIR, `${id}${ext}`));
   try {
@@ -129,7 +140,10 @@ export function movePicture(userId: number, albumId: number, pictureId: number, 
 
 /** The picture albums this person can add to, and whether this chat picture is in each (for "Add to album"). */
 export function albumsForImage(userId: number, imageId: number): { id: number; name: string; mine: boolean; shared: boolean; has: boolean }[] {
-  return (
+  const adult = !!db
+    .prepare("SELECT 1 FROM chat_images i JOIN conversations c ON c.id = i.conversation_id WHERE i.id = ? AND i.user_id = ? AND c.adult = 1")
+    .get(imageId, userId);
+  const choices = (
     db
       .prepare(
         `SELECT a.id, a.name, a.user_id = :uid AS mine,
@@ -142,6 +156,8 @@ export function albumsForImage(userId: number, imageId: number): { id: number; n
       )
       .all({ uid: userId, image: imageId }) as { id: number; name: string; mine: number; shared: number; has: number }[]
   ).map((r) => ({ id: r.id, name: r.name, mine: !!r.mine, shared: !!r.shared, has: !!r.has }));
+  // Adult pictures: only your own private albums.
+  return adult ? choices.filter((c) => c.mine && !c.shared) : choices;
 }
 
 /** The picture in an album that came from this chat picture (for taking it out from the chat). */

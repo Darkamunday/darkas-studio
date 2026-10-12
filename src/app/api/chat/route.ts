@@ -18,6 +18,8 @@ import { filesForChat, setAttachedFiles } from "@/lib/chat/files";
 import { getProject } from "@/lib/chat/projects";
 import { setPinnedSkills, skillsForMessage, slashSlug } from "@/lib/chat/skills";
 import { getMasterPrompt } from "@/lib/chat/master-prompt";
+import { adultAccess } from "@/lib/chat/adult";
+import { completeOpenRouter, streamOpenRouter } from "@/lib/chat/openrouter";
 import { attachMemoriesToMessage, listMemories, memoryActive, noticeMemories } from "@/lib/chat/memory";
 import { claimUploads, imagesForPrompt, unsentUploads, uploadCounts } from "@/lib/chat/uploads";
 import {
@@ -58,6 +60,8 @@ import {
   type ImageAspect,
 } from "@/config/images";
 import {
+  ADULT_MODELS,
+  ADULT_RULES,
   CHAT_MODELS,
   DEFAULT_MODEL,
   MAX_FILES_PER_USER,
@@ -65,6 +69,7 @@ import {
   MAX_MESSAGE_CHARS,
   MAX_REPLY_TOKENS,
   allowedModel,
+  findAdultModel,
   findChatModel,
 } from "@/config/chat";
 
@@ -92,6 +97,8 @@ const Body = z.union([
     fileIds: z.array(z.number().int().positive()).max(MAX_FILES_PER_USER).optional(),
     /** The project a new chat starts in. */
     projectId: z.number().int().positive().optional(),
+    /** Start an adult (18+) chat (new chats only; it stays adult). */
+    adult: z.boolean().optional(),
     /** Skills pinned before a new chat existed; pinned when it's created. */
     skillIds: z.array(z.number().int().positive()).max(50).optional(),
     image: ImagePrefs,
@@ -197,18 +204,23 @@ export async function POST(req: NextRequest) {
   if (resuming && (!paused || paused.conversation_id !== conversation?.id)) return Response.json({ error: "not_found" }, { status: 404 });
 
   const isAdmin = !!user.is_admin;
-  const requestedModel = allowedModel(body.model, isAdmin);
+  // Adult (18+) chats run on OpenRouter and nothing in them goes to Ollama Cloud. A chat is adult from
+  // its first message; only people switched on (and who confirmed they're 18+) can use one.
+  const adult = conversation ? !!conversation.adult : "adult" in body && !!body.adult;
+  if (adult && adultAccess(user.id) !== "on") return Response.json({ error: "adult_disabled" }, { status: 403 });
+  if (adult && !conversation && "projectId" in body && body.projectId) return Response.json({ error: "bad_request" }, { status: 400 });
+  const pick = (id: unknown) => (adult ? findAdultModel(id) : allowedModel(id, isAdmin));
+  const requestedModel = pick(body.model);
   if (body.model && !requestedModel) return Response.json({ error: "bad_model" }, { status: 400 });
 
   // The model that will answer: the one asked for, else the chat's own (if still allowed), else the default.
   const model =
     requestedModel ??
-    (conversation ? allowedModel(conversation.model, isAdmin) : undefined) ??
-    findChatModel(DEFAULT_MODEL) ??
-    CHAT_MODELS[0];
+    (conversation ? pick(conversation.model) : undefined) ??
+    (adult ? ADULT_MODELS[0] : (findChatModel(DEFAULT_MODEL) ?? CHAT_MODELS[0]));
 
   // The chat's project: its own for an existing chat, or the one a new chat is started in.
-  const projectId = conversation ? conversation.project_id : "projectId" in body ? (body.projectId ?? null) : null;
+  const projectId = adult ? null : conversation ? conversation.project_id : "projectId" in body ? (body.projectId ?? null) : null;
   const project = projectId ? getProject(user.id, projectId) : undefined;
   if (projectId && !project && !conversation) return Response.json({ error: "not_found" }, { status: 404 });
 
@@ -232,8 +244,11 @@ export async function POST(req: NextRequest) {
   const imageCommand = asked ? /^\/image(?:\s+([\s\S]*))?$/.exec(asked) : null;
   const toolset = toolsetFor(isAdmin, conversation?.id ?? null);
   const useTools = !imageCommand && !!model.tools;
-  // Memory: what's remembered goes to every chat; new facts are noticed after the reply.
-  const remembering = memoryActive(user.id);
+  // Memory: what's remembered goes to every chat; new facts are noticed after the reply. Adult chats
+  // are kept out of it both ways.
+  const remembering = !adult && memoryActive(user.id);
+  // Adult chats' fixed rules go last of all, after anything people can write, so nothing can override them.
+  const rules = adult ? `\n\n${ADULT_RULES}` : "";
   const system =
     systemPrompt({
       base: getMasterPrompt().text,
@@ -242,7 +257,9 @@ export async function POST(req: NextRequest) {
       project: project ? { name: project.name, instructions: project.instructions } : null,
       skills,
       files,
-    }) + (useTools && toolset.catalogue ? `\n\n${toolset.catalogue}` : "");
+    }) +
+    (useTools && toolset.catalogue ? `\n\n${toolset.catalogue}` : "") +
+    rules;
   if (estimateTokens([{ role: "system", content: system }]) > model.contextTokens - MAX_REPLY_TOKENS - MIN_CONVERSATION_TOKENS) {
     return Response.json({ error: "files_too_big", model: model.label }, { status: 413 });
   }
@@ -269,7 +286,7 @@ export async function POST(req: NextRequest) {
   // Save the user's side first, so it's kept even if the model never answers.
   let userMessageId: number | null = null;
   const conversationId = transaction(() => {
-    const id = conversation?.id ?? createConversation(user.id, requestedModel?.id ?? DEFAULT_MODEL, project?.id ?? null);
+    const id = conversation?.id ?? createConversation(user.id, requestedModel?.id ?? model.id, project?.id ?? null, adult);
     if (conversation && requestedModel && requestedModel.id !== conversation.model) {
       setConversationModel(user.id, id, requestedModel.id);
     }
@@ -309,7 +326,12 @@ export async function POST(req: NextRequest) {
     .filter((i) => i.status === "ready" && i.messageId !== null)
     .slice(-10)
     .map((i) => i.prompt.slice(0, 300));
-  const prompt = buildPrompt(madeImages.length ? `${system}${imagesNote(madeImages)}` : system, history, model);
+  // The note about images already made goes before the adult rules, which always stay last.
+  const prompt = buildPrompt(
+    madeImages.length ? `${system.slice(0, system.length - rules.length)}${imagesNote(madeImages)}${rules}` : system,
+    history,
+    model,
+  );
   const needsTitle = !conversation.title && !resuming;
   const firstUserMessage = history.find((m) => m.role === "user")!.content || "(a picture)";
   // The reply just before the person's message: context for noticing what to remember.
@@ -366,16 +388,20 @@ export async function POST(req: NextRequest) {
         let usage: TokenUsage | null = null;
         let output = "";
         try {
-          for await (const piece of streamChat({
-            model: model.id,
-            messages,
-            numCtx: model.contextTokens,
-            // The Think toggle (on unless switched off), for models that can reason.
-            think: model.thinking ? body.think !== false : undefined,
-            tools,
-            signal: req.signal,
-            onUsage: (u) => (usage = u),
-          })) {
+          const pieces =
+            model.provider === "openrouter"
+              ? streamOpenRouter({ model: model.id, messages, maxTokens: MAX_REPLY_TOKENS, signal: req.signal, onUsage: (u) => (usage = u) })
+              : streamChat({
+                  model: model.id,
+                  messages,
+                  numCtx: model.contextTokens,
+                  // The Think toggle (on unless switched off), for models that can reason.
+                  think: model.thinking ? body.think !== false : undefined,
+                  tools,
+                  signal: req.signal,
+                  onUsage: (u) => (usage = u),
+                });
+          for await (const piece of pieces) {
             if (piece.kind === "tool_call") calls.push(piece.call);
             else if (piece.kind === "thinking") {
               thinkStart ??= Date.now();
@@ -410,10 +436,11 @@ export async function POST(req: NextRequest) {
           let description = imagePrompt;
           if (body.image?.improve) {
             try {
-              const { text, usage } = await completeChat(model.id, [
+              const turns: ChatTurn[] = [
                 { role: "system", content: `${system}\n\n${IMPROVE_IMAGE_PROMPT}` },
                 { role: "user", content: imagePrompt },
-              ]);
+              ];
+              const { text, usage } = model.provider === "openrouter" ? await completeOpenRouter(model.id, turns) : await completeChat(model.id, turns);
               if (usage) recordSpend(user.id, model.id, usage);
               if (text.trim()) description = text.trim().replace(/^["“]|["”]$/g, "").slice(0, MAX_IMAGE_PROMPT_CHARS);
             } catch (err) {
@@ -534,7 +561,9 @@ export async function POST(req: NextRequest) {
       await Promise.all([
         (async () => {
           if (!needsTitle) return;
-          const title = req.signal.aborted ? fallbackTitle(firstUserMessage) : await makeTitle(user.id, model.id, firstUserMessage);
+          // Adult chats are titled from their first message (no model call: nothing of theirs goes to Ollama).
+          const title =
+            req.signal.aborted || adult ? fallbackTitle(firstUserMessage) : await makeTitle(user.id, model.id, firstUserMessage);
           renameConversation(user.id, conversationId, title);
           send({ type: "title", title });
         })(),

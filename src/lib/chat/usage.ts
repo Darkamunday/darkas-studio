@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "../db";
-import { chatDay } from "./access";
+import { chatDay } from "./day";
 
 export type ChatUserRow = {
   id: number;

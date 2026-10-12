@@ -10,6 +10,7 @@ import { fetchTimedLyrics, getTimingTrack } from "@/lib/timed-lyrics";
 import { canViewTrack } from "@/lib/tracks";
 import { setMasterPrompt } from "@/lib/chat/master-prompt";
 import { setMemoryForApp } from "@/lib/chat/memory";
+import { setAdultEnabled } from "@/lib/chat/adult";
 import {
   addServer,
   deleteServer,
@@ -101,6 +102,15 @@ export async function setChatForAll(formData: FormData) {
 export async function setChatMemory(formData: FormData) {
   const admin = await requireAdmin();
   setMemoryForApp(formData.get("enabled") === "1", admin.id);
+  revalidatePath("/admin", "layout");
+}
+
+/** Adult (18+) chats for one person, on or off. Their adult chats stay, but can't be continued while off. */
+export async function setAdultChat(formData: FormData) {
+  await requireAdmin();
+  const id = Number(formData.get("userId"));
+  if (!Number.isInteger(id)) return;
+  setAdultEnabled(id, formData.get("enabled") === "1");
   revalidatePath("/admin", "layout");
 }
 

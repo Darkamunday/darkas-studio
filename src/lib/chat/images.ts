@@ -5,7 +5,7 @@ import { copyFile, mkdir } from "node:fs/promises";
 import { db } from "../db";
 import { ComfyMcpError, callTool, type ToolResult } from "../comfy-mcp";
 import { COVER_DIR, MEDIA_DIR, downloadTo, removeMediaFile, resolveMediaPath } from "../storage";
-import { chatDay } from "./access";
+import { chatDay } from "./day";
 import { canSeeSharedImage } from "./shared";
 import { DEFAULT_IMAGE_DAILY_CAP, IMAGE_ASPECTS, findImageModel, type ImageAspect } from "@/config/images";
 

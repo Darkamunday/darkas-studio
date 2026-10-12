@@ -247,11 +247,12 @@ export function projectSkills(projectId: number): ProjectSkill[] {
     .all(projectId) as ProjectSkill[];
 }
 
-/** Move one of your chats into a project you can use, or out (null). */
+/** Move one of your chats into a project you can use, or out (null). Adult chats never go in a project. */
 export function moveConversation(userId: number, conversationId: number, projectId: number | null): boolean {
   if (projectId !== null && !getProject(userId, projectId)) return false;
   return (
-    db.prepare("UPDATE conversations SET project_id = ? WHERE id = ? AND user_id = ?").run(projectId, conversationId, userId)
-      .changes > 0
+    db
+      .prepare("UPDATE conversations SET project_id = ? WHERE id = ? AND user_id = ? AND (adult = 0 OR ? IS NULL)")
+      .run(projectId, conversationId, userId, projectId).changes > 0
   );
 }

@@ -10,7 +10,14 @@ import { PaperclipIcon } from "./files-dialog";
 import { SparkIcon } from "./skills-dialog";
 import type { ClientProject } from "@/lib/chat/projects";
 
-export type SidebarConversation = { id: number; title: string | null; updated_at: number; project_id: number | null };
+export type SidebarConversation = {
+  id: number;
+  title: string | null;
+  updated_at: number;
+  project_id: number | null;
+  /** An adult (18+) chat: marked, and can't be moved into a project. */
+  adult?: boolean;
+};
 
 type Group = "today" | "yesterday" | "week" | "older";
 
@@ -246,6 +253,7 @@ export function Sidebar({
                           active ? "bg-surface-3 font-medium text-fg" : "text-muted hover:bg-surface-2 hover:text-fg"
                         }`}
                       >
+                        {c.adult && <span className="mr-1.5 rounded bg-danger/15 px-1 text-[10px] font-semibold text-danger">18+</span>}
                         {title}
                       </Link>
                       <div
@@ -253,9 +261,11 @@ export function Sidebar({
                           active ? "md:opacity-100" : ""
                         }`}
                       >
-                        <IconButton label={m.chat.moveChat} onClick={() => onMoveChat(c.id)}>
-                          <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
-                        </IconButton>
+                        {!c.adult && (
+                          <IconButton label={m.chat.moveChat} onClick={() => onMoveChat(c.id)}>
+                            <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+                          </IconButton>
+                        )}
                         <IconButton label={m.chat.rename} onClick={() => setEditing(c.id)}>
                           <path d="M12 20h9M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4Z" />
                         </IconButton>
