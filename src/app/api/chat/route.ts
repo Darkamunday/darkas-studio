@@ -390,7 +390,7 @@ export async function POST(req: NextRequest) {
         try {
           const pieces =
             model.provider === "openrouter"
-              ? streamOpenRouter({ model: model.id, messages, maxTokens: MAX_REPLY_TOKENS, signal: req.signal, onUsage: (u) => (usage = u) })
+              ? streamOpenRouter({ model: model.id, messages, maxTokens: MAX_REPLY_TOKENS, tools, signal: req.signal, onUsage: (u) => (usage = u) })
               : streamChat({
                   model: model.id,
                   messages,

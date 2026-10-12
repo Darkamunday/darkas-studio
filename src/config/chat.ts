@@ -48,6 +48,9 @@ export const CHAT_MODELS: ChatModel[] = [
 export const ADULT_MODELS: ChatModel[] = [
   { id: "sao10k/l3.3-euryale-70b", label: "Euryale 70B", provider: "openrouter", contextTokens: 32_000, price: { input: 0.65, output: 0.75 } },
   { id: "thedrummer/cydonia-24b-v4.1", label: "Cydonia 24B", provider: "openrouter", contextTokens: 32_000, price: { input: 0.3, output: 0.5 } },
+  // Can use tools (Comfy and other connections), with the same access and approval settings as other chats.
+  { id: "mistralai/mistral-small-3.2-24b-instruct", label: "Mistral Small 3.2 · tools", provider: "openrouter", contextTokens: 32_000, price: { input: 0.09, output: 0.25 }, tools: true },
+  { id: "deepseek/deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash · tools", provider: "openrouter", contextTokens: 64_000, price: { input: 0.15, output: 0.6 }, tools: true },
   { id: "cognitivecomputations/dolphin-mistral-24b-venice-edition", label: "Dolphin 24B (Venice)", provider: "openrouter", contextTokens: 32_000, price: { input: 0.2, output: 0.9 } },
 ];
 

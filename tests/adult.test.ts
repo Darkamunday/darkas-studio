@@ -8,7 +8,7 @@ import * as A from "@/lib/albums";
 import * as PA from "@/lib/picture-albums";
 import { createConversation } from "@/lib/chat/store";
 import { getSongDraft } from "@/lib/chat/song-draft";
-import { streamOpenRouter } from "@/lib/chat/openrouter";
+import { streamOpenRouter, toMessages } from "@/lib/chat/openrouter";
 import { OllamaError } from "@/lib/chat/ollama";
 import { ADULT_MODELS, ADULT_RULES, CHAT_MODELS, findAdultModel, findAnyModel, findChatModel } from "@/config/chat";
 import { makeChatImage, makeMessage, makeUser } from "./helpers";
@@ -36,8 +36,8 @@ test("adult models are separate from the ordinary ones, and all run on OpenRoute
     assert.equal(m.provider, "openrouter");
     assert.equal(findChatModel(m.id), undefined, "never offered in ordinary chats");
     assert.equal(findAnyModel(m.id), m);
-    assert.ok(!m.tools, "no tools: they'd go to other services");
   }
+  assert.ok(ADULT_MODELS.some((m) => m.tools), "at least one adult model can use tools");
   for (const m of CHAT_MODELS) assert.equal(findAdultModel(m.id), undefined);
   for (const rule of ["under 18", "real, identifiable people", "non-consent"]) assert.ok(ADULT_RULES.includes(rule));
 });
@@ -122,5 +122,58 @@ test("OpenRouter client: asks for no data collection, streams text and usage, ma
     );
   } finally {
     globalThis.fetch = realFetch;
+  }
+});
+
+test("tool calls: turns are converted to OpenAI's format with matching ids", () => {
+  const out = toMessages([
+    { role: "system", content: "sys" },
+    { role: "user", content: "make two" },
+    { role: "assistant", content: "", tool_calls: [{ function: { name: "a", arguments: { x: 1 } } }, { function: { name: "b", arguments: {} } }] },
+    { role: "tool", content: "result a", tool_name: "a" },
+    { role: "tool", content: "result b", tool_name: "b" },
+    { role: "assistant", content: "", tool_calls: [{ function: { name: "c", arguments: { y: "z" } } }] },
+    { role: "tool", content: "result c", tool_name: "c" },
+    { role: "tool", content: "orphan", tool_name: "d" },
+  ]);
+  const calls = out.flatMap((m) => (m.role === "assistant" && m.tool_calls ? m.tool_calls : []));
+  const results = out.filter((m) => m.role === "tool") as { tool_call_id: string; content: string }[];
+  assert.deepEqual(calls.map((c) => c.function.name), ["a", "b", "c"]);
+  assert.equal(calls[0].function.arguments, '{"x":1}');
+  assert.deepEqual(results.map((r) => r.tool_call_id), calls.map((c) => c.id), "each result points at its call");
+  assert.equal(results.length, 3, "a result with no call is dropped");
+});
+
+test("tool calls stream in pieces and come out whole", async () => {
+  process.env.OPENROUTER_API_KEY = "test-key";
+  const realFetch = globalThis.fetch;
+  let body: Record<string, unknown> = {};
+  try {
+    globalThis.fetch = (async (_url: string, init: RequestInit) => {
+      body = JSON.parse(String(init.body));
+      const lines = [
+        'data: {"choices":[{"delta":{"content":"On it. "}}]}\n\n',
+        'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"x1","function":{"name":"generate_image","arguments":"{\\"pro"}}]}}]}\n\n',
+        'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"mpt\\":\\"a test\\"}"}}]}}]}\n\n',
+        'data: {"choices":[{"delta":{"tool_calls":[{"index":1,"id":"x2","function":{"name":"load_tools","arguments":"{}"}}]}}]}\n\n',
+        "data: [DONE]\n\n",
+      ];
+      return new Response(new ReadableStream({ start(c) { for (const l of lines) c.enqueue(new TextEncoder().encode(l)); c.close(); } }));
+    }) as typeof fetch;
+    const tools = [{ type: "function" as const, function: { name: "generate_image", description: "d", parameters: {} } }];
+    const pieces = [];
+    for await (const p of streamOpenRouter({ model: "m", messages: [{ role: "user", content: "hi" }], maxTokens: 10, tools })) pieces.push(p);
+    assert.deepEqual(body.tools, tools, "tools are sent");
+    assert.deepEqual(
+      pieces.filter((p) => p.kind === "tool_call").map((p) => (p.kind === "tool_call" ? p.call.function : null)),
+      [
+        { name: "generate_image", arguments: { prompt: "a test" } },
+        { name: "load_tools", arguments: {} },
+      ],
+    );
+    assert.ok(pieces.some((p) => p.kind === "text" && p.text === "On it. "));
+  } finally {
+    globalThis.fetch = realFetch;
+    delete process.env.OPENROUTER_API_KEY;
   }
 });
