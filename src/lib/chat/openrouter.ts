@@ -97,6 +97,8 @@ export async function* streamOpenRouter(opts: {
   maxTokens: number;
   /** Tools the model may call (same shape as Ollama's, which is OpenAI's). */
   tools?: ToolDef[];
+  /** The Think toggle, for models that can reason (left out: the model's own default). */
+  think?: boolean;
   signal?: AbortSignal;
   onUsage?: (usage: TokenUsage) => void;
 }): AsyncGenerator<StreamPiece> {
@@ -107,6 +109,7 @@ export async function* streamOpenRouter(opts: {
       stream: true,
       max_tokens: opts.maxTokens,
       ...(opts.tools?.length ? { tools: opts.tools } : {}),
+      ...(opts.think === undefined ? {} : { reasoning: { enabled: opts.think } }),
     },
     opts.signal,
   );

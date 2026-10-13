@@ -165,6 +165,7 @@ test("tool calls stream in pieces and come out whole", async () => {
     const pieces = [];
     for await (const p of streamOpenRouter({ model: "m", messages: [{ role: "user", content: "hi" }], maxTokens: 10, tools })) pieces.push(p);
     assert.deepEqual(body.tools, tools, "tools are sent");
+    assert.equal(body.reasoning, undefined, "no Think setting unless asked");
     assert.deepEqual(
       pieces.filter((p) => p.kind === "tool_call").map((p) => (p.kind === "tool_call" ? p.call.function : null)),
       [
@@ -173,6 +174,28 @@ test("tool calls stream in pieces and come out whole", async () => {
       ],
     );
     assert.ok(pieces.some((p) => p.kind === "text" && p.text === "On it. "));
+  } finally {
+    globalThis.fetch = realFetch;
+    delete process.env.OPENROUTER_API_KEY;
+  }
+});
+
+test("the Think toggle is passed to OpenRouter as reasoning", async () => {
+  process.env.OPENROUTER_API_KEY = "test-key";
+  const realFetch = globalThis.fetch;
+  const bodies: Record<string, unknown>[] = [];
+  try {
+    globalThis.fetch = (async (_url: string, init: RequestInit) => {
+      bodies.push(JSON.parse(String(init.body)));
+      return new Response(new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"reasoning":"hmm","content":"ok"}}]}\n\ndata: [DONE]\n\n')); c.close(); } }));
+    }) as typeof fetch;
+    const pieces = [];
+    for await (const p of streamOpenRouter({ model: "m", messages: [], maxTokens: 1, think: true })) pieces.push(p);
+    for await (const _ of streamOpenRouter({ model: "m", messages: [], maxTokens: 1, think: false })) void _;
+    assert.deepEqual(bodies.map((b) => b.reasoning), [{ enabled: true }, { enabled: false }]);
+    assert.ok(pieces.some((p) => p.kind === "thinking" && p.text === "hmm"), "reasoning is shown as thinking");
+    const adultDefault = ADULT_MODELS[0];
+    assert.ok(adultDefault.tools && adultDefault.thinking, "the default adult model has tools and Think");
   } finally {
     globalThis.fetch = realFetch;
     delete process.env.OPENROUTER_API_KEY;
