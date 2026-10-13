@@ -741,6 +741,7 @@ export const id: Messages = {
       no_vision: "{model} tidak bisa melihat gambar — pilih model lain, atau hapus gambarnya.",
       upload_type: "Gambar itu tidak bisa dibaca — coba JPEG atau PNG.",
       too_many_pictures: "Maksimal {n} gambar per pesan.",
+      reply_running: "Balasan masih ditulis di obrolan ini — tunggu sampai selesai, atau hentikan.",
       adult_disabled: "Obrolan dewasa belum diaktifkan untukmu.",
       no_credit: "Layanan obrolan dewasa kehabisan kredit — beri tahu admin.",
       too_many_memories: "Memori penuh — hapus beberapa untuk memberi ruang.",

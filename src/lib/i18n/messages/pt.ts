@@ -742,6 +742,7 @@ export const pt: Messages = {
       no_vision: "{model} não consegue ver imagens — escolha outro modelo ou remova-as.",
       upload_type: "Não foi possível ler essa imagem — tente um JPEG ou PNG.",
       too_many_pictures: "Até {n} imagens por mensagem.",
+      reply_running: "Uma resposta ainda está sendo escrita neste chat — espere terminar ou pare-a.",
       adult_disabled: "Os chats adultos não estão ativados para você.",
       no_credit: "O serviço de chat adulto ficou sem crédito — avise o admin.",
       too_many_memories: "A memória está cheia — exclua algumas para abrir espaço.",

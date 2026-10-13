@@ -74,8 +74,9 @@ let keySeq = 0;
 export const newKey = () => `local-${++keySeq}`;
 
 /**
- * Talks to POST /api/chat and keeps the message list in step with the stream.
- * Stop aborts the request; the server keeps whatever had arrived.
+ * Talks to POST /api/chat and keeps the message list in step with the stream. Replies run on the server
+ * as jobs that don't stop when this page goes away (see live.ts): opening a chat, or coming back to the
+ * app after switching away on a phone, picks up the reply where it is. Stop asks the server to stop it.
  */
 export function useChatStream(initial: UiMessage[], conversationId: number | null, handlers: Handlers) {
   const [messages, setMessages] = useState<UiMessage[]>(initial);
@@ -84,122 +85,198 @@ export function useChatStream(initial: UiMessage[], conversationId: number | nul
   const idRef = useRef(conversationId);
   const handlersRef = useRef(handlers);
   const messagesRef = useRef(messages);
+  // The connection dropped mid-reply (app switched away, signal lost): pick it up again on return.
+  const interruptedRef = useRef(false);
   useEffect(() => {
     handlersRef.current = handlers;
     idRef.current = conversationId;
     messagesRef.current = messages;
   });
 
-  // Leaving the page stops the reply (the server saves what it has so far).
-  useEffect(() => () => abortRef.current?.abort(), []);
-
   const patchLast = (fn: (m: UiMessage) => UiMessage) =>
     setMessages((list) => (list.length ? [...list.slice(0, -1), fn(list[list.length - 1])] : list));
 
-  const run = useCallback(async (body: Request, userKey: string | null, before: UiMessage[]) => {
+  /** Read a reply's event stream into the message list. */
+  const consume = useCallback(async (stream: NonNullable<Response["body"]>, userKey: string | null, state: { gotReply: boolean }) => {
     const h = handlersRef.current;
-    const ctrl = new AbortController();
-    abortRef.current = ctrl;
-    setStreaming(true);
-    let gotReply = false;
-    try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal: ctrl.signal,
-      });
-      if (!res.ok || !res.body) {
-        const err = (await res.json().catch(() => ({}))) as { error?: string; cap?: number; model?: string };
-        // Refused before anything was saved: put the list back as it was.
-        setMessages(before);
-        h.onError?.(err.error ?? "generic", { cap: err.cap, model: err.model });
-        return false;
-      }
-      const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
-      let buffer = "";
-      for (;;) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buffer += value;
-        let nl: number;
-        while ((nl = buffer.indexOf("\n")) >= 0) {
-          const line = buffer.slice(0, nl);
-          buffer = buffer.slice(nl + 1);
-          if (!line.trim()) continue;
-          const event = JSON.parse(line) as ChatEvent;
-          switch (event.type) {
-            case "meta":
-              h.onConversation?.(event.conversationId, idRef.current !== event.conversationId);
-              h.onUsage?.(event.usage);
-              idRef.current = event.conversationId;
-              if (event.userMessageId !== null) {
-                const id = event.userMessageId;
-                setMessages((list) => list.map((m) => (m.key === userKey ? { ...m, id } : m)));
-              }
-              break;
-            case "thinking":
-              patchLast((m) => ({ ...m, thinking: (m.thinking ?? "") + event.text }));
-              break;
-            case "delta":
-              gotReply = true;
-              patchLast((m) => ({ ...m, content: m.content + event.text }));
-              break;
-            case "done":
-              patchLast((m) => ({ ...m, id: event.messageId, thinkingMs: event.thinkingMs }));
-              break;
-            case "title":
-              h.onTitle?.(event.title);
-              break;
-            case "tool": {
-              // A card can belong to an earlier reply (e.g. the one that asked for approval): update it there.
-              gotReply = true;
-              const call = event.call;
-              setMessages((list) => {
-                const owner = list.findIndex((m) => m.tools?.some((t) => t.id === call.id));
-                const at = owner >= 0 ? owner : list.length - 1;
-                return list.map((m, i) => {
-                  if (i !== at) return m;
-                  const tools = m.tools ?? [];
-                  return { ...m, tools: tools.some((t) => t.id === call.id) ? tools.map((t) => (t.id === call.id ? call : t)) : [...tools, call] };
-                });
+  const reader = stream.pipeThrough(new TextDecoderStream()).getReader();
+    let buffer = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += value;
+      let nl: number;
+      while ((nl = buffer.indexOf("\n")) >= 0) {
+        const line = buffer.slice(0, nl);
+        buffer = buffer.slice(nl + 1);
+        if (!line.trim()) continue;
+        const event = JSON.parse(line) as ChatEvent;
+        switch (event.type) {
+          case "meta":
+            h.onConversation?.(event.conversationId, idRef.current !== event.conversationId);
+            h.onUsage?.(event.usage);
+            idRef.current = event.conversationId;
+            if (event.userMessageId !== null) {
+              const id = event.userMessageId;
+              setMessages((list) => list.map((m) => (m.key === userKey ? { ...m, id } : m)));
+            }
+            break;
+          case "thinking":
+            patchLast((m) => ({ ...m, thinking: (m.thinking ?? "") + event.text }));
+            break;
+          case "delta":
+            state.gotReply = true;
+            patchLast((m) => ({ ...m, content: m.content + event.text }));
+            break;
+          case "done":
+            patchLast((m) => ({ ...m, id: event.messageId, thinkingMs: event.thinkingMs }));
+            break;
+          case "title":
+            h.onTitle?.(event.title);
+            break;
+          case "tool": {
+            // A card can belong to an earlier reply (e.g. the one that asked for approval): update it there.
+            state.gotReply = true;
+            const call = event.call;
+            setMessages((list) => {
+              const owner = list.findIndex((m) => m.tools?.some((t) => t.id === call.id));
+              const at = owner >= 0 ? owner : list.length - 1;
+              return list.map((m, i) => {
+                if (i !== at) return m;
+                const tools = m.tools ?? [];
+                return { ...m, tools: tools.some((t) => t.id === call.id) ? tools.map((t) => (t.id === call.id ? call : t)) : [...tools, call] };
               });
-              break;
-            }
-            case "image": {
-              gotReply = true;
-              const img = event.image;
-              patchLast((m) => {
-                const list = m.images ?? [];
-                const at = list.findIndex((i) => i.id === img.id);
-                return { ...m, images: at < 0 ? [...list, img] : list.map((i) => (i.id === img.id ? img : i)) };
-              });
-              break;
-            }
-            case "memory": {
-              gotReply = true;
-              const note: MemoryNote = { action: event.action, memory: event.memory };
-              patchLast((m) => ({ ...m, memories: [...(m.memories ?? []), note] }));
-              break;
-            }
-            case "error":
-              h.onError?.(event.reason);
-              break;
+            });
+            break;
           }
+          case "image": {
+            state.gotReply = true;
+            const img = event.image;
+            patchLast((m) => {
+              const list = m.images ?? [];
+              const at = list.findIndex((i) => i.id === img.id);
+              return { ...m, images: at < 0 ? [...list, img] : list.map((i) => (i.id === img.id ? img : i)) };
+            });
+            break;
+          }
+          case "memory": {
+            state.gotReply = true;
+            const note: MemoryNote = { action: event.action, memory: event.memory };
+            patchLast((m) => ({ ...m, memories: [...(m.memories ?? []), note] }));
+            break;
+          }
+          case "error":
+            h.onError?.(event.reason);
+            break;
         }
       }
-    } catch (err) {
-      if ((err as Error).name !== "AbortError") h.onError?.("generic");
-    } finally {
-      abortRef.current = null;
-      setStreaming(false);
-      // Drop a reply bubble with no answer text (stopped or failed before any — even mid-thinking);
-      // the server doesn't keep those either.
-      if (!gotReply) setMessages((list) => (list.at(-1)?.role === "assistant" && !list.at(-1)!.content ? list.slice(0, -1) : list));
-      h.onFinish?.();
     }
-    return true;
   }, []);
+
+  /** Whether a dropped connection means "picked up later" rather than an error. */
+  const dropped = (err: unknown) => (err as Error).name !== "AbortError" && (document.hidden || err instanceof TypeError);
+
+  const run = useCallback(
+    async (body: Request, userKey: string | null, before: UiMessage[]) => {
+      const h = handlersRef.current;
+      const ctrl = new AbortController();
+      abortRef.current = ctrl;
+      setStreaming(true);
+      const state = { gotReply: false };
+      let interrupted = false;
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          signal: ctrl.signal,
+        });
+        if (!res.ok || !res.body) {
+          const err = (await res.json().catch(() => ({}))) as { error?: string; cap?: number; model?: string };
+          // Refused before anything was saved: put the list back as it was.
+          setMessages(before);
+          h.onError?.(err.error ?? "generic", { cap: err.cap, model: err.model });
+          return false;
+        }
+        await consume(res.body, userKey, state);
+      } catch (err) {
+        // Lost the connection (e.g. switched apps): the reply carries on on the server; pick it up on return.
+        if (dropped(err) && idRef.current !== null) interrupted = interruptedRef.current = true;
+        else if ((err as Error).name !== "AbortError") h.onError?.("generic");
+      } finally {
+        abortRef.current = null;
+        setStreaming(false);
+        // Drop a reply bubble with no answer text (stopped or failed before any — even mid-thinking);
+        // the server doesn't keep those either. Not when we only lost sight of it.
+        if (!state.gotReply && !interrupted && !ctrl.signal.aborted) {
+          setMessages((list) => (list.at(-1)?.role === "assistant" && !list.at(-1)!.content ? list.slice(0, -1) : list));
+        }
+        h.onFinish?.();
+      }
+      return true;
+    },
+    [consume],
+  );
+
+  /**
+   * Follow the reply running in this chat, if any: everything so far, then live. Returns false when
+   * there's none to follow (it finished a while ago, or never started).
+   */
+  const follow = useCallback(async (): Promise<boolean> => {
+    const id = idRef.current;
+    if (id === null || abortRef.current) return true;
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    try {
+      const res = await fetch(`/api/chat/conversations/${id}/live`, { signal: ctrl.signal, cache: "no-store" });
+      if (res.status === 204 || !res.body) return false;
+      interruptedRef.current = false;
+      setStreaming(true);
+      // The replay sends the whole reply again: start from an empty bubble (replacing a half-shown one).
+      setMessages((list) => {
+        const last = list.at(-1);
+        const base = last?.role === "assistant" && last.id === null ? list.slice(0, -1) : list;
+        return [...base, { key: newKey(), id: null, role: "assistant", content: "" }];
+      });
+      await consume(res.body, null, { gotReply: false });
+      return true;
+    } catch (err) {
+      if (dropped(err)) interruptedRef.current = true;
+      return true;
+    } finally {
+      if (abortRef.current === ctrl) abortRef.current = null;
+      setStreaming(false);
+      handlersRef.current.onFinish?.();
+    }
+  }, [consume]);
+
+  // Opening a chat whose reply is still running shows it carrying on.
+  useEffect(() => {
+    // Started after this render (follow updates state once the server answers).
+    const timer = setTimeout(() => void follow(), 0);
+    return () => {
+      clearTimeout(timer);
+      // Leaving the page only stops watching; the reply carries on on the server.
+      abortRef.current?.abort();
+    };
+  }, [follow]);
+
+  // Coming back to the app (phones pause the page when you switch away): pick the reply up again. If
+  // it finished long enough ago that the server no longer has it live, reload to show the saved result.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.hidden || !interruptedRef.current) return;
+      void follow().then((found) => {
+        if (!found) window.location.reload();
+      });
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("online", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", onVisible);
+    };
+  }, [follow]);
 
   const send = useCallback(
     (content: string, { model, think, fileIds, projectId, skillIds, image, pictures, adult }: SendOptions = {}) => {
@@ -256,7 +333,12 @@ export function useChatStream(initial: UiMessage[], conversationId: number | nul
     [run],
   );
 
-  const stop = useCallback(() => abortRef.current?.abort(), []);
+  /** Stop the reply: ask the server (it keeps what it has so far); before the chat exists, just let go. */
+  const stop = useCallback(() => {
+    const id = idRef.current;
+    if (id === null) return abortRef.current?.abort();
+    void fetch(`/api/chat/conversations/${id}/stop`, { method: "POST" }).catch(() => abortRef.current?.abort());
+  }, []);
 
   return { messages, setMessages, streaming, send, regenerate, resume, stop };
 }

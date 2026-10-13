@@ -744,6 +744,7 @@ export const en = {
       no_vision: "{model} can't see pictures — pick another model, or remove them.",
       upload_type: "That picture couldn't be read — try a JPEG or PNG.",
       too_many_pictures: "Up to {n} pictures per message.",
+      reply_running: "A reply is still being written in this chat — wait for it to finish, or stop it.",
       adult_disabled: "Adult chats aren't switched on for you.",
       no_credit: "The adult chat service is out of credit — let the admin know.",
       too_many_memories: "Memory is full — delete some to make room.",

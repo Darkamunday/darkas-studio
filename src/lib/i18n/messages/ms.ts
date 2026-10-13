@@ -742,6 +742,7 @@ export const ms: Messages = {
       no_vision: "{model} tidak dapat melihat gambar — pilih model lain, atau alih keluar gambar itu.",
       upload_type: "Gambar itu tidak dapat dibaca — cuba JPEG atau PNG.",
       too_many_pictures: "Maksimum {n} gambar setiap mesej.",
+      reply_running: "Balasan masih ditulis dalam sembang ini — tunggu sehingga selesai, atau hentikannya.",
       adult_disabled: "Sembang dewasa tidak dihidupkan untuk anda.",
       no_credit: "Perkhidmatan sembang dewasa kehabisan kredit — beritahu admin.",
       too_many_memories: "Memori penuh — padam sebahagian untuk memberi ruang.",

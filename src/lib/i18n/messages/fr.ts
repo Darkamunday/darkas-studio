@@ -741,6 +741,7 @@ export const fr: Messages = {
       no_vision: "{model} ne peut pas voir les images — choisis un autre modèle, ou retire-les.",
       upload_type: "Cette image n'a pas pu être lue — essaie un JPEG ou un PNG.",
       too_many_pictures: "{n} images maximum par message.",
+      reply_running: "Une réponse est encore en cours dans ce chat — attends qu'elle se termine, ou arrête-la.",
       adult_disabled: "Les chats adultes ne sont pas activés pour toi.",
       no_credit: "Le service de chat adulte n'a plus de crédit — préviens l'admin.",
       too_many_memories: "La mémoire est pleine — supprimes-en pour faire de la place.",

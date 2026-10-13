@@ -18,6 +18,7 @@ import { filesForChat, setAttachedFiles } from "@/lib/chat/files";
 import { getProject } from "@/lib/chat/projects";
 import { setPinnedSkills, skillsForMessage, slashSlug } from "@/lib/chat/skills";
 import { getMasterPrompt } from "@/lib/chat/master-prompt";
+import { NDJSON_HEADERS, isLive, startLive, watch } from "@/lib/chat/live";
 import { adultAccess } from "@/lib/chat/adult";
 import { completeOpenRouter, streamOpenRouter } from "@/lib/chat/openrouter";
 import { attachMemoriesToMessage, listMemories, memoryActive, noticeMemories } from "@/lib/chat/memory";
@@ -32,7 +33,6 @@ import {
   toolsetFor,
   type ClientToolCall,
 } from "@/lib/chat/tools";
-import type { ChatEvent } from "@/lib/chat/events";
 import {
   OllamaError,
   completeChat,
@@ -200,6 +200,8 @@ export async function POST(req: NextRequest) {
 
   let conversation = body.conversationId ? getConversation(user.id, body.conversationId) : undefined;
   if (body.conversationId && !conversation) return Response.json({ error: "not_found" }, { status: 404 });
+  // One reply at a time per chat (the last one may still be running after the browser left).
+  if (conversation && isLive(user.id, conversation.id)) return Response.json({ error: "reply_running" }, { status: 409 });
   const paused = resuming ? pendingApproval(user.id, resuming.toolCallId) : undefined;
   if (resuming && (!paused || paused.conversation_id !== conversation?.id)) return Response.json({ error: "not_found" }, { status: 404 });
 
@@ -338,19 +340,13 @@ export async function POST(req: NextRequest) {
   const lastAsked = history.findLastIndex((m) => m.role === "user");
   const previousReply = history.slice(0, lastAsked).findLast((m) => m.role === "assistant")?.content ?? null;
 
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      let open = true;
-      const send = (event: ChatEvent) => {
-        if (!open) return;
-        try {
-          controller.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
-        } catch {
-          open = false; // the browser went away
-        }
-      };
-
+  // The reply runs as a job that doesn't depend on this request: leaving the chat or switching apps
+  // doesn't stop it (only Stop does), and the chat can be opened again to follow it (see live.ts).
+  const live = startLive(user.id, conversationId);
+  if (!live) return Response.json({ error: "reply_running" }, { status: 409 });
+  const send = live.send;
+  void (async () => {
+    try {
       send({ type: "meta", conversationId, userMessageId, usage: { sent: sentToday(user.id), cap } });
 
       let reply = "";
@@ -396,7 +392,7 @@ export async function POST(req: NextRequest) {
                   maxTokens: MAX_REPLY_TOKENS,
                   tools,
                   think: model.thinking ? body.think !== false : undefined,
-                  signal: req.signal,
+                  signal: live.signal,
                   onUsage: (u) => (usage = u),
                 })
               : streamChat({
@@ -406,7 +402,7 @@ export async function POST(req: NextRequest) {
                   // The Think toggle (on unless switched off), for models that can reason.
                   think: model.thinking ? body.think !== false : undefined,
                   tools,
-                  signal: req.signal,
+                  signal: live.signal,
                   onUsage: (u) => (usage = u),
                 });
           for await (const piece of pieces) {
@@ -431,7 +427,7 @@ export async function POST(req: NextRequest) {
         } finally {
           // Count what it cost. A reply cut short never reports its tokens, so those are estimated.
           if (usage) recordSpend(user.id, model.id, usage);
-          else if (output || req.signal.aborted) {
+          else if (output || live.signal.aborted) {
             recordSpend(user.id, model.id, { input: estimateTokens(messages), output: Math.ceil(output.length / 4) }, true);
           }
         }
@@ -497,7 +493,7 @@ export async function POST(req: NextRequest) {
           for (let step = 0; step < MAX_TOOL_STEPS; step++) {
             const before = reply.length;
             const calls = await streamTurn(messages, offered());
-            if (!calls.length || req.signal.aborted) break;
+            if (!calls.length || live.signal.aborted) break;
             const stepText = reply.slice(before).trim();
             const handled = calls.slice(0, 4);
             const results: ChatTurn[] = [];
@@ -549,7 +545,7 @@ export async function POST(req: NextRequest) {
           }
         }
       } catch (err) {
-        if (!req.signal.aborted) {
+        if (!live.signal.aborted) {
           const reason = err instanceof OllamaError ? err.reason : "generic";
           if (!(err instanceof OllamaError)) console.error("[chat] stream failed", err);
           send({ type: "error", reason });
@@ -564,6 +560,7 @@ export async function POST(req: NextRequest) {
         }
       }
       send({ type: "done", messageId, thinkingMs });
+      live.markSaved();
 
       // After the reply: the chat's title (first message) and what to remember, side by side.
       await Promise.all([
@@ -571,12 +568,12 @@ export async function POST(req: NextRequest) {
           if (!needsTitle) return;
           // Adult chats are titled from their first message (no model call: nothing of theirs goes to Ollama).
           const title =
-            req.signal.aborted || adult ? fallbackTitle(firstUserMessage) : await makeTitle(user.id, model.id, firstUserMessage);
+            live.signal.aborted || adult ? fallbackTitle(firstUserMessage) : await makeTitle(user.id, model.id, firstUserMessage);
           renameConversation(user.id, conversationId, title);
           send({ type: "title", title });
         })(),
         (async () => {
-          if (!remembering || !("content" in body) || !body.content || imageCommand || req.signal.aborted) return;
+          if (!remembering || !("content" in body) || !body.content || imageCommand || live.signal.aborted) return;
           const changes = await noticeMemories(user.id, body.content, previousReply, async (system, text, format) => {
             const { text: out, usage } = await completeChat(
               DEFAULT_MODEL,
@@ -595,21 +592,13 @@ export async function POST(req: NextRequest) {
         })(),
       ]);
 
-      if (open) {
-        open = false;
-        try {
-          controller.close();
-        } catch {}
-      }
-    },
-  });
+    } catch (err) {
+      console.error("[chat] reply job failed", err);
+      send({ type: "error", reason: "generic" });
+    } finally {
+      live.finish();
+    }
+  })();
 
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "application/x-ndjson; charset=utf-8",
-      "Cache-Control": "no-store",
-      // Stops proxies (e.g. Nginx) from buffering the stream.
-      "X-Accel-Buffering": "no",
-    },
-  });
+  return new Response(watch(live), { headers: NDJSON_HEADERS });
 }
