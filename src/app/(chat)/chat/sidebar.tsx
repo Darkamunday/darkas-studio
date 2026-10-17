@@ -49,6 +49,7 @@ export function Sidebar({
   fileCount,
   onOpenFiles,
   onOpenMemory,
+  showVideos = false,
   skillCount,
   onOpenSkills,
   projects,
@@ -72,6 +73,8 @@ export function Sidebar({
   onOpenFiles: () => void;
   /** Open the Memory window (absent when an admin has switched memory off). */
   onOpenMemory?: () => void;
+  /** Show Videos in the menu (phone drawer). */
+  showVideos?: boolean;
   skillCount: number;
   onOpenSkills: () => void;
   projects: (ClientProject & { count: number })[];
@@ -333,7 +336,7 @@ export function Sidebar({
       {onClose && (
         <div className="border-t border-line/70 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:hidden">
           <p className="sr-only">{m.chat.menu}</p>
-          <NavLinks isAdmin={isAdmin} showChat className="flex-wrap justify-center gap-y-1" />
+          <NavLinks isAdmin={isAdmin} showChat showVideos={showVideos} className="flex-wrap justify-center gap-y-1" />
         </div>
       )}
     </div>

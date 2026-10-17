@@ -562,6 +562,92 @@ const MIGRATIONS: string[] = [
   ALTER TABLE conversations ADD COLUMN adult INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE album_pictures ADD COLUMN adult INTEGER NOT NULL DEFAULT 0;
   `,
+  // 28: music videos, made with Comfy Cloud (stills, then clips) and edited with ffmpeg, in steps a
+  // person approves. Off per person until an admin switches it on (video_enabled); video_credit_cap is a
+  // monthly Comfy credit cap (NULL = the default in src/config/video.ts; admins have none). A video is
+  // for a catalogue song (track_id) or an uploaded track (audio_path). Its files live in
+  // MEDIA_DIR/videos/<id>/. Cast members have an optional reference photo. Shots carry the Comfy job
+  // ids for their still and clip, saved as soon as they're submitted, so a restart picks up where it was.
+  `
+  ALTER TABLE users ADD COLUMN video_enabled INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE users ADD COLUMN video_credit_cap INTEGER;
+
+  CREATE TABLE videos (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id           INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    track_id          INTEGER,
+    audio_path        TEXT,
+    title             TEXT NOT NULL,
+    concept           TEXT,
+    status            TEXT NOT NULL DEFAULT 'draft'
+                      CHECK (status IN ('draft', 'analysing', 'analysed', 'planning', 'plan_ready', 'stills', 'clips', 'assembling', 'done', 'failed')),
+    error             TEXT,
+    duration          REAL,
+    bpm               REAL,
+    beat_offset       REAL,
+    sections          TEXT,
+    treatment         TEXT,
+    credits_estimated REAL,
+    credits_spent     REAL NOT NULL DEFAULT 0,
+    output_path       TEXT,
+    created_at        INTEGER NOT NULL DEFAULT (unixepoch()),
+    updated_at        INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+  CREATE INDEX videos_user ON videos(user_id, updated_at);
+
+  CREATE TABLE video_cast (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    video_id       INTEGER NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+    code           TEXT NOT NULL,
+    name           TEXT NOT NULL,
+    description    TEXT NOT NULL,
+    ref_path       TEXT,
+    UNIQUE (video_id, code)
+  );
+
+  CREATE TABLE video_shots (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    video_id       INTEGER NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+    position       INTEGER NOT NULL,
+    start          REAL NOT NULL,
+    end            REAL NOT NULL,
+    bars           INTEGER NOT NULL,
+    section        TEXT NOT NULL,
+    cast_code      TEXT,
+    setting        TEXT NOT NULL DEFAULT '',
+    still_prompt   TEXT NOT NULL DEFAULT '',
+    clip_prompt    TEXT NOT NULL DEFAULT '',
+    reuse_still_of INTEGER,
+    still_status   TEXT NOT NULL DEFAULT 'none' CHECK (still_status IN ('none', 'queued', 'running', 'ready', 'failed')),
+    still_job_id   TEXT,
+    still_seed     INTEGER,
+    still_path     TEXT,
+    still_approved INTEGER NOT NULL DEFAULT 0,
+    still_error    TEXT,
+    clip_status    TEXT NOT NULL DEFAULT 'none' CHECK (clip_status IN ('none', 'queued', 'running', 'ready', 'failed')),
+    clip_job_id    TEXT,
+    clip_path      TEXT,
+    clip_approved  INTEGER NOT NULL DEFAULT 0,
+    clip_error     TEXT
+  );
+  CREATE INDEX video_shots_video ON video_shots(video_id, position);
+
+  -- Credits each paid Comfy step used (or was estimated to use), for caps and the admin page.
+  CREATE TABLE video_spend (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    video_id   INTEGER REFERENCES videos(id) ON DELETE SET NULL,
+    credits    REAL NOT NULL,
+    what       TEXT NOT NULL,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+  CREATE INDEX video_spend_user ON video_spend(user_id, created_at);
+  `,
+  // 29: the video switch now applies to admins too (so it can be turned off for anyone). Admins had
+  // access without it, so they start switched on.
+  `
+  UPDATE users SET video_enabled = 1 WHERE is_admin = 1;
+  `,
 ];
 
 function open(): DatabaseSync {

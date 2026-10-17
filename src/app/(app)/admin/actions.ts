@@ -11,6 +11,7 @@ import { canViewTrack } from "@/lib/tracks";
 import { setMasterPrompt } from "@/lib/chat/master-prompt";
 import { setMemoryForApp } from "@/lib/chat/memory";
 import { setAdultEnabled } from "@/lib/chat/adult";
+import { setVideoCreditCap, setVideoEnabled, setVideoEnabledForAll } from "@/lib/video/store";
 import {
   addServer,
   deleteServer,
@@ -111,6 +112,35 @@ export async function setAdultChat(formData: FormData) {
   const id = Number(formData.get("userId"));
   if (!Number.isInteger(id)) return;
   setAdultEnabled(id, formData.get("enabled") === "1");
+  revalidatePath("/admin", "layout");
+}
+
+// ---- music videos ----------------------------------------------------------------------
+
+export async function setVideoAccess(formData: FormData) {
+  await requireAdmin();
+  const id = Number(formData.get("userId"));
+  if (!Number.isInteger(id)) return;
+  setVideoEnabled(id, formData.get("enabled") === "1");
+  revalidatePath("/admin", "layout");
+}
+
+/** Videos on or off for everyone, admins included. */
+export async function setVideoForAll(formData: FormData) {
+  await requireAdmin();
+  setVideoEnabledForAll(formData.get("enabled") === "1");
+  revalidatePath("/admin", "layout");
+}
+
+/** Blank clears the personal monthly credit cap, falling back to the default in src/config/video.ts. */
+export async function setVideoCap(formData: FormData) {
+  await requireAdmin();
+  const id = Number(formData.get("userId"));
+  if (!Number.isInteger(id)) return;
+  const raw = String(formData.get("cap") ?? "").trim();
+  const cap = raw === "" ? null : Math.floor(Number(raw));
+  if (cap !== null && !(Number.isFinite(cap) && cap >= 0 && cap <= 1_000_000)) return;
+  setVideoCreditCap(id, cap);
   revalidatePath("/admin", "layout");
 }
 

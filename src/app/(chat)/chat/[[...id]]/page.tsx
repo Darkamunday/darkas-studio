@@ -5,6 +5,7 @@ import { capFor, hasChatAccess, sentToday } from "@/lib/chat/access";
 import { cookies } from "next/headers";
 import { ADULT_MODELS, CHAT_MODEL_COOKIE, CHAT_THINK_COOKIE, DEFAULT_MODEL, allowedModel, findAdultModel } from "@/config/chat";
 import { adultAccess } from "@/lib/chat/adult";
+import { hasVideoAccess } from "@/lib/video/store";
 import { getConversation, getInstructions, listConversations, listMessages } from "@/lib/chat/store";
 import { attachedFileIds, listFiles, toClientFile } from "@/lib/chat/files";
 import { getProject, listProjects, toClientProject } from "@/lib/chat/projects";
@@ -123,6 +124,7 @@ export default async function ChatPage({ params, searchParams }: PageProps<"/cha
       memoryAvailable={memoryOnForApp()}
       adultAccess={adultAccess(user.id)}
       initialAdult={adult}
+      showVideos={hasVideoAccess(user.id)}
       isAdmin={isAdmin}
     />
   );

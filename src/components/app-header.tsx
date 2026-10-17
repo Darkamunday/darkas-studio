@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import type { User } from "@/lib/auth";
 import { hasChatAccess } from "@/lib/chat/access";
+import { hasVideoAccess } from "@/lib/video/store";
 import { getI18n } from "@/lib/i18n/server";
 import { Logo } from "./logo";
 import { NavLinks } from "./nav-links";
@@ -17,12 +18,13 @@ export async function AppHeader({ user, compact = false }: { user: User; compact
   const { m } = await getI18n();
   // Only hides the link; /chat and its API routes check access themselves.
   const showChat = hasChatAccess(user);
+  const showVideos = hasVideoAccess(user.id);
 
   return (
     <header className="sticky top-0 z-30 border-b border-line/70 bg-bg/75 backdrop-blur-xl">
       <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
         <Logo />
-        <NavLinks isAdmin={!!user.is_admin} showChat={showChat} className="ml-4 hidden sm:flex" />
+        <NavLinks isAdmin={!!user.is_admin} showChat={showChat} showVideos={showVideos} className="ml-4 hidden sm:flex" />
         <div className="ml-auto flex items-center gap-2">
           <LanguagePicker />
           <ThemeToggle initial={theme} />
@@ -46,7 +48,7 @@ export async function AppHeader({ user, compact = false }: { user: User; compact
         </div>
       </div>
       {!compact && (
-        <NavLinks isAdmin={!!user.is_admin} showChat={showChat} className="mx-auto max-w-6xl px-3 pb-2 sm:hidden" />
+        <NavLinks isAdmin={!!user.is_admin} showChat={showChat} showVideos={showVideos} className="mx-auto max-w-6xl overflow-x-auto px-3 pb-2 sm:hidden" />
       )}
     </header>
   );

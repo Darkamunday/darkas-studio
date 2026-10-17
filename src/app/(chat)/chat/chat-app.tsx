@@ -52,6 +52,7 @@ export function ChatApp({
   memoryAvailable,
   adultAccess: initialAdultAccess,
   initialAdult,
+  showVideos,
   isAdmin,
 }: {
   initialConversations: SidebarConversation[];
@@ -83,6 +84,8 @@ export function ChatApp({
   adultAccess: "off" | "confirm" | "on";
   /** This chat is an adult chat. */
   initialAdult: boolean;
+  /** Can make music videos (for the menu). */
+  showVideos: boolean;
   isAdmin: boolean;
 }) {
   const { locale, m } = useI18n();
@@ -587,6 +590,7 @@ export function ChatApp({
       setDrawerOpen(false);
       setInstructionsOpen(true);
     },
+    showVideos,
     onOpenMemory: memoryAvailable
       ? () => {
           setDrawerOpen(false);

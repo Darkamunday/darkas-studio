@@ -7,10 +7,13 @@ import { useI18n } from "@/lib/i18n/client";
 export function NavLinks({
   isAdmin,
   showChat,
+  showVideos = false,
   className = "",
 }: {
   isAdmin: boolean;
   showChat: boolean;
+  /** Can make music videos (admins, or switched on). */
+  showVideos?: boolean;
   className?: string;
 }) {
   const pathname = usePathname();
@@ -19,6 +22,7 @@ export function NavLinks({
     { href: "/generate", label: m.nav.create },
     { href: "/catalogue", label: m.nav.catalogue },
     { href: "/albums", label: m.nav.albums },
+    ...(showVideos ? [{ href: "/videos", label: m.nav.videos }] : []),
     ...(showChat ? [{ href: "/chat", label: m.nav.chat }] : []),
     ...(isAdmin ? [{ href: "/admin", label: m.nav.admin }] : []),
   ];
@@ -32,7 +36,7 @@ export function NavLinks({
             key={l.href}
             href={l.href}
             aria-current={active ? "page" : undefined}
-            className={`rounded-xl px-3.5 py-1.5 text-sm font-medium transition ${
+            className={`whitespace-nowrap rounded-xl px-3.5 py-1.5 text-sm font-medium transition ${
               active ? "bg-surface-3 text-fg" : "text-muted hover:bg-surface-2 hover:text-fg"
             }`}
           >
